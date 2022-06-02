@@ -7,21 +7,18 @@ import android.view.MotionEvent;
 import android.view.ViewConfiguration;
 import android.widget.FrameLayout;
 
-import kotlin.jvm.functions.Function1;
-
 import static java.lang.Math.sqrt;
 
 
 public class MapTouchWrapper extends FrameLayout {
     private int      touchSlop = 0;
     private Point    down = null;
-//    private Callable listener = null;
-    private Function1 listener;
+    private Callable listener = null;
 
 
-//    interface Callable {
-//        void invoke(Point param);
-//    }
+    public interface Callable {
+        void invoke(Point param);
+    }
 
     public MapTouchWrapper(Context context) {
         super(context);
@@ -38,7 +35,7 @@ public class MapTouchWrapper extends FrameLayout {
         touchSlop = vc.getScaledTouchSlop();
     }
 
-    public void setup( Function1 listener ){
+    public void setup( Callable listener ){
         this.listener = listener;
     }
 
