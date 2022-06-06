@@ -15,12 +15,14 @@
  */
 package hu.hero.landar.helpers;
 
+import android.annotation.SuppressLint;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
 import android.graphics.Canvas;
 import android.graphics.Color;
 import android.graphics.LightingColorFilter;
 import android.graphics.Paint;
+import android.util.TypedValue;
 
 import com.google.android.gms.maps.CameraUpdateFactory;
 import com.google.android.gms.maps.GoogleMap;
@@ -119,7 +121,7 @@ public class MapView {
         BitmapFactory.Options opt = new BitmapFactory.Options();
         opt.inMutable = true;
         Bitmap navigationIcon =
-                BitmapFactory.decodeResource(activity.getResources(), R.drawable.ic_navigation_white_48dp, opt);
+                BitmapFactory.decodeResource(activity.getResources(), R.drawable.ic_navigation_white_48dp,opt);
         Paint p = new Paint();
         p.setColorFilter(new LightingColorFilter(color,  /* add= */1));
         Canvas canvas = new Canvas(navigationIcon);
