@@ -5,10 +5,11 @@
     android:layout_height="match_parent"
     tools:context=".MainActivity">
 
-    <androidx.fragment.app.FragmentContainerView
-        android:id="@+id/arFragment"
-        android:layout_width="match_parent"
-        android:layout_height="match_parent" />
+    <android.opengl.GLSurfaceView
+        android:id="@+id/surfaceview"
+        android:layout_width="fill_parent"
+        android:layout_height="fill_parent"
+        android:layout_gravity="top" />
 
     <hu.hero.landar.helpers.MapTouchWrapper
         android:id="@+id/map_wrapper"
@@ -32,4 +33,5 @@
             android:id="@+id/statusText"
             />
     </hu.hero.landar.helpers.MapTouchWrapper>
+
 </RelativeLayout>
