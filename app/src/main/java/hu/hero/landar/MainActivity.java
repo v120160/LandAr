@@ -16,6 +16,7 @@ import com.google.ar.core.Earth;
 import com.google.ar.core.GeospatialPose;
 import com.google.ar.core.HitResult;
 import com.google.ar.core.Plane;
+import com.google.ar.core.Pose;
 import com.google.ar.core.Session;
 import com.google.ar.core.TrackingState;
 import com.google.ar.sceneform.AnchorNode;
@@ -24,9 +25,14 @@ import com.google.ar.sceneform.FrameTime;
 import com.google.ar.sceneform.Node;
 import com.google.ar.sceneform.SceneView;
 import com.google.ar.sceneform.Sceneform;
+import com.google.ar.sceneform.math.Quaternion;
 import com.google.ar.sceneform.math.Vector3;
+import com.google.ar.sceneform.rendering.CameraStream;
+import com.google.ar.sceneform.rendering.Color;
+import com.google.ar.sceneform.rendering.MaterialFactory;
 import com.google.ar.sceneform.rendering.ModelRenderable;
 import com.google.ar.sceneform.rendering.Renderable;
+import com.google.ar.sceneform.rendering.ShapeFactory;
 import com.google.ar.sceneform.rendering.ViewRenderable;
 import com.google.ar.sceneform.ux.ArFragment;
 import com.google.ar.sceneform.ux.BaseArFragment;
@@ -52,9 +58,14 @@ public class MainActivity extends AppCompatActivity implements
     private MainActivity mActivity;
     private static final double MIN_OPENGL_VERSION = 3.0;
     private ArFragment arFragment;
-    private Renderable mRenderable;
+    private Renderable mModel;
     private ViewRenderable mViewRenderable;
     public MapView mMapView = null;
+    private AnchorNode mLastAnchor = null;
+
+    private class PicAnchar extends Anchor{
+        public LatLng pos;
+    }
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -73,20 +84,22 @@ public class MainActivity extends AppCompatActivity implements
         }
 
         loadModels();
+
+        // 設定點擊地圖時的動作
         MapTouchWrapper mapTouchWrapper = findViewById(R.id.map_wrapper);
         mapTouchWrapper.setup(screenLocation -> {
             LatLng latLng = mMapView.googleMap.getProjection().fromScreenLocation(screenLocation);
             Log.d("胡征懷",latLng.toString());
             Earth earth = arFragment.getArSceneView().getSession().getEarth();
             if (earth.getTrackingState() == TrackingState.TRACKING ){
-                double altitude = earth.getCameraGeospatialPose().getAltitude() - 1;
+                double altitude = earth.getCameraGeospatialPose().getAltitude() ;
                 // The rotation quaternion of the anchor in the East-Up-South (EUS) coordinate system.
                 float qx = 0f;
                 float qy = 0f;
                 float qz = 0f;
                 float qw = 1f;
                 Anchor anchor = earth.createAnchor(latLng.latitude, latLng.longitude, altitude, qx, qy, qz, qw);
-                drawAnchor(anchor);
+                addAnchor(anchor, latLng );
             }
             mActivity.mMapView.addMarker( latLng );
         });
@@ -131,6 +144,7 @@ public class MainActivity extends AppCompatActivity implements
         if (session.isDepthModeSupported(Config.DepthMode.AUTOMATIC)) {
             config.setDepthMode(Config.DepthMode.AUTOMATIC);
         }
+
         if (session.isGeospatialModeSupported( Config.GeospatialMode.ENABLED)) {
             config.setGeospatialMode(Config.GeospatialMode.ENABLED);
         }
@@ -142,6 +156,16 @@ public class MainActivity extends AppCompatActivity implements
 
         // Fine adjust the maximum frame rate
         arSceneView.setFrameRateFactor(SceneView.FrameRate.FULL);
+
+        // Available modes: DEPTH_OCCLUSION_DISABLED, DEPTH_OCCLUSION_ENABLED
+        // 啟用深度及遮蔽
+        arSceneView.getCameraStream().setDepthOcclusionMode(
+                        CameraStream.DepthOcclusionMode.DEPTH_OCCLUSION_ENABLED );
+
+        // 取消平面偵測的白點點
+        arSceneView.getPlaneRenderer().setVisible(false);
+
+        // 設定 scene 每次畫面更新時呼叫
         arSceneView.getScene().addOnUpdateListener(frameTime->{
             Earth earth = arSceneView.getSession().getEarth();
             if (earth.getTrackingState() == TrackingState.TRACKING ){
@@ -152,6 +176,7 @@ public class MainActivity extends AppCompatActivity implements
                         cameraGeospatialPose.getLongitude(),
                         cameraGeospatialPose.getHeading()
                 );
+
                 // Draw the placed anchor, if it exists.
 //            if( mEarthAnchor != null )
 //                renderCompassAtAnchor( render , mEarthAnchor );
@@ -163,7 +188,7 @@ public class MainActivity extends AppCompatActivity implements
 
     public void loadModels() {
         WeakReference<MainActivity> weakActivity = new WeakReference<>(this);
-        ModelRenderable.builder()
+/*        ModelRenderable.builder()
                 .setSource(this, Uri.parse("https://storage.googleapis.com/ar-answers-in-search-models/static/Tiger/model.glb"))
                 .setIsFilamentGltf(true)
                 .setAsyncLoadEnabled(true)
@@ -179,6 +204,18 @@ public class MainActivity extends AppCompatActivity implements
                             this, "Unable to load model", Toast.LENGTH_LONG).show();
                     return null;
                 });
+
+ */
+        MaterialFactory.makeOpaqueWithColor(this, new Color(android.graphics.Color.RED))
+                .thenAccept(
+                        material -> {
+                            // 金屬表面
+                            material.setFloat(MaterialFactory.MATERIAL_METALLIC, 1f);
+                            // 球型
+                     //       mModel = ShapeFactory.makeSphere(1.0f, new Vector3(0.0f, 0.15f, 0.0f), material);
+                            // 圓柱
+                            mModel = ShapeFactory.makeCylinder(0.5f, 3f,  new Vector3(0.0f, 0.15f, 0.0f), material);
+                        });
         ViewRenderable.builder()
                 .setView(this, R.layout.view_model_title)
                 .build()
@@ -195,7 +232,7 @@ public class MainActivity extends AppCompatActivity implements
     }
     @Override
     public void onTapPlane(HitResult hitResult, Plane plane, MotionEvent motionEvent) {
-        if ( mRenderable == null || mViewRenderable == null) {
+        if ( mModel == null || mViewRenderable == null) {
             Toast.makeText(this, "Loading...", Toast.LENGTH_SHORT).show();
             return;
         }
@@ -208,7 +245,7 @@ public class MainActivity extends AppCompatActivity implements
         // Create the transformable model and add it to the anchor.
         TransformableNode model = new TransformableNode(arFragment.getTransformationSystem());
         model.setParent(anchorNode);
-        model.setRenderable(this.mRenderable)
+        model.setRenderable(this.mModel)
                 .animate(true).start();
         model.select();
 
@@ -235,23 +272,71 @@ public class MainActivity extends AppCompatActivity implements
         }
     }
 
-    private void drawAnchor( Anchor anchor ){
+    private void addAnchor( Anchor anchor , LatLng latlng ){
         AnchorNode anchorNode = new AnchorNode(anchor);
         anchorNode.setParent(arFragment.getArSceneView().getScene());
 
         // Create the transformable model and add it to the anchor.
         TransformableNode model = new TransformableNode(arFragment.getTransformationSystem());
         model.setParent(anchorNode);
-        model.setRenderable(this.mRenderable)
-                .animate(true).start();
+        model.setRenderable( mModel );
+               // .animate(true).start();
         model.select();
 
+        // 計算告示牌方向，讓牌子都面向使用者,但是當使用者移動時，也要詬調整方位 @@
+        float az=0;
+        Earth earth = arFragment.getArSceneView().getSession().getEarth();
+        GeospatialPose base;
+        if (earth.getTrackingState() == TrackingState.TRACKING ) {
+            // TODO: the Earth object may be used here.
+            base = earth.getCameraGeospatialPose();
+            double daz = Math.atan((latlng.latitude-base.getLatitude())/(latlng.longitude- base.getLongitude()));
+            az = (float)(daz * 180f / Math.PI ) + 90f;
+        }
+        // 告示牌
         Node titleNode = new Node();
         titleNode.setParent(model);
         titleNode.setEnabled(false);
-        titleNode.setLocalPosition(new Vector3(0.0f, 1.0f, 0.0f));
+        titleNode.setLocalPosition(new Vector3(0.0f, 2.0f, 0.0f));
+        titleNode.setLocalRotation( Quaternion.axisAngle(new Vector3(0f, 1f, 0f), az));
         titleNode.setRenderable(mViewRenderable);
         titleNode.setEnabled(true);
+
+            /*
+    First, find the vector extending between the two points and define a look rotation
+    in terms of this Vector.
+*/
+        if( mLastAnchor == null)
+        {
+            mLastAnchor = anchorNode;
+            return;
+        }
+        Vector3 point1 = anchorNode.getWorldPosition();
+        Vector3 point2 = mLastAnchor.getWorldPosition();
+
+
+        final Vector3 difference = Vector3.subtract(point1, point2);
+        final Vector3 directionFromTopToBottom = difference.normalized();
+        final Quaternion rotationFromAToB =
+                Quaternion.lookRotation(directionFromTopToBottom, Vector3.up());
+        MaterialFactory.makeOpaqueWithColor(getApplicationContext(), new Color(255, 0, 0))
+                .thenAccept(
+                        material -> {
+                            /* Then, create a rectangular prism, using ShapeFactory.makeCube() and use the difference vector
+                                   to extend to the necessary length.  */
+                            ModelRenderable lineCube = ShapeFactory.makeCube(
+                                    new Vector3(.1f, .1f, difference.length()),
+                                    Vector3.zero(), material);
+                            /* Last, set the world rotation of the node to the rotation calculated earlier and set the world position to
+                                   the midpoint between the given points . */
+                            Node node = new Node();
+                            node.setParent(anchorNode);
+                            node.setRenderable(lineCube);
+                            node.setWorldPosition(Vector3.add(point1, point2).scaled(.5f));
+                            node.setWorldRotation(rotationFromAToB);
+                        }
+                );
     }
+
 
 }
