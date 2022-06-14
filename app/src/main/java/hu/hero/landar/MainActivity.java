@@ -39,15 +39,18 @@ import com.google.ar.sceneform.ux.BaseArFragment;
 import com.google.ar.sceneform.ux.TransformableNode;
 
 import java.lang.ref.WeakReference;
+import java.util.List;
 
 import androidx.annotation.NonNull;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.fragment.app.Fragment;
 import androidx.fragment.app.FragmentManager;
 import androidx.fragment.app.FragmentOnAttachListener;
+import hu.hero.landar.database.PICDATA;
 import hu.hero.landar.helpers.GeoPermissionsHelper;
 import hu.hero.landar.helpers.MapTouchWrapper;
 import hu.hero.landar.helpers.MapView;
+import hu.hero.landar.net.GetPicsByDistance;
 
 public class MainActivity extends AppCompatActivity implements
         FragmentOnAttachListener,
@@ -62,6 +65,9 @@ public class MainActivity extends AppCompatActivity implements
     private ViewRenderable mViewRenderable;
     public MapView mMapView = null;
     private AnchorNode mLastAnchor = null;
+
+    private double mBaseLat = 0;
+    private double mBaseLon = 119.0;
 
     private class PicAnchar extends Anchor{
         public LatLng pos;
@@ -101,7 +107,7 @@ public class MainActivity extends AppCompatActivity implements
                 Anchor anchor = earth.createAnchor(latLng.latitude, latLng.longitude, altitude, qx, qy, qz, qw);
                 addAnchor(anchor, latLng );
             }
-            mActivity.mMapView.addMarker( latLng );
+            mActivity.mMapView.addPicMarker( latLng );
         });
 
 
@@ -159,8 +165,8 @@ public class MainActivity extends AppCompatActivity implements
 
         // Available modes: DEPTH_OCCLUSION_DISABLED, DEPTH_OCCLUSION_ENABLED
         // 啟用深度及遮蔽
-        arSceneView.getCameraStream().setDepthOcclusionMode(
-                        CameraStream.DepthOcclusionMode.DEPTH_OCCLUSION_ENABLED );
+//        arSceneView.getCameraStream().setDepthOcclusionMode(
+//                        CameraStream.DepthOcclusionMode.DEPTH_OCCLUSION_ENABLED );
 
         // 取消平面偵測的白點點
         arSceneView.getPlaneRenderer().setVisible(false);
@@ -176,6 +182,16 @@ public class MainActivity extends AppCompatActivity implements
                         cameraGeospatialPose.getLongitude(),
                         cameraGeospatialPose.getHeading()
                 );
+
+                // 移動距離大了, 重新要相片清單
+                if( distance( cameraGeospatialPose.getLatitude(), cameraGeospatialPose.getLongitude(),
+                            mBaseLat , mBaseLon ) > 50 ){
+                    mBaseLat = cameraGeospatialPose.getLatitude();
+                    mBaseLon = cameraGeospatialPose.getLongitude();
+                    GetPicsByDistance GPBD = new GetPicsByDistance(mActivity);
+                    GPBD.get( "VD01" , mBaseLat, mBaseLon, 500  );
+                }
+
 
                 // Draw the placed anchor, if it exists.
 //            if( mEarthAnchor != null )
@@ -255,6 +271,54 @@ public class MainActivity extends AppCompatActivity implements
         titleNode.setLocalPosition(new Vector3(0.0f, 1.0f, 0.0f));
         titleNode.setRenderable(mViewRenderable);
         titleNode.setEnabled(true);
+    }
+
+    // 從伺服路要相片清單回來
+    public void onReadPicListFinish( List<PICDATA> list ){
+        Earth earth = arFragment.getArSceneView().getSession().getEarth();
+        if (earth.getTrackingState() == TrackingState.TRACKING ) {
+            // 高程暫時用手機高程
+            double altitude = earth.getCameraGeospatialPose().getAltitude() ;
+
+            // The rotation quaternion of the anchor in the East-Up-South (EUS) coordinate system.
+            float qx = 0f;
+            float qy = 0f;
+            float qz = 0f;
+            float qw = 1f;
+            for( PICDATA pic : list ) {
+                double lat = pic.getCoordy();
+                double lon = pic.getCoordx();
+                Anchor anchor = earth.createAnchor( lat, lon, altitude, qx, qy, qz, qw);
+                AnchorNode anchorNode = new AnchorNode(anchor);
+                anchorNode.setParent(arFragment.getArSceneView().getScene());
+                // Create the transformable model and add it to the anchor.
+                TransformableNode model = new TransformableNode(arFragment.getTransformationSystem());
+                model.setParent(anchorNode);
+                model.setRenderable( mModel );
+                // .animate(true).start();
+                model.select();
+
+                // 計算告示牌方向，讓牌子都面向使用者,但是當使用者移動時，也要詬調整方位 @@
+                float az=0;
+                GeospatialPose base = earth.getCameraGeospatialPose();
+                double daz = Math.atan(( lat-base.getLatitude())/(lon-base.getLongitude()));
+                az = (float)(daz * 180f / Math.PI ) + 90f;
+                // 告示牌
+                Node titleNode = new Node();
+                titleNode.setParent(model);
+                titleNode.setEnabled(false);
+                titleNode.setLocalPosition(new Vector3(0.0f, 2.0f, 0.0f));
+                titleNode.setLocalRotation( Quaternion.axisAngle(new Vector3(0f, 1f, 0f), az));
+                titleNode.setRenderable(mViewRenderable);
+                titleNode.setEnabled(true);
+            }
+        }
+        // 在GoogleMap 新增 Marker
+        for( PICDATA pic : list ) {
+            double lat = pic.getCoordy();
+            double lon = pic.getCoordx();
+            mActivity.mMapView.addPicMarker( new LatLng(lat, lon) );
+        }
     }
 
     @Override
@@ -338,5 +402,12 @@ public class MainActivity extends AppCompatActivity implements
                 );
     }
 
-
+    public static double distance( double LatA , double LonA , double LatB , double LonB )
+    {
+        // 東西經,南北緯處理,只在國內可以不處理(假設都是北半球,南半球只有澳洲具有應用意義)
+        // 地球半徑(米)
+        double R = 6371004;
+        double C = Math.sin(Math.toRadians(LatA)) * Math.sin(Math.toRadians(LatB)) + Math.cos(Math.toRadians(LatA)) * Math.cos(Math.toRadians(LatB)) * Math.cos(Math.toRadians(LonA - LonB));
+        return (R * Math.acos(C));
+    }
 }

@@ -27,6 +27,7 @@ import android.util.TypedValue;
 import com.google.android.gms.maps.CameraUpdateFactory;
 import com.google.android.gms.maps.GoogleMap;
 import com.google.android.gms.maps.UiSettings;
+import com.google.android.gms.maps.model.BitmapDescriptor;
 import com.google.android.gms.maps.model.BitmapDescriptorFactory;
 import com.google.android.gms.maps.model.CameraPosition;
 import com.google.android.gms.maps.model.LatLng;
@@ -94,6 +95,16 @@ public class MapView {
 
             googleMap.moveCamera(CameraUpdateFactory.newCameraPosition(cameraPositionBuilder.build()));
         });
+    }
+
+    public void addPicMarker( LatLng  latlon ){
+        MarkerOptions marker = new MarkerOptions().position(latlon).title("FUCK").anchor(0.5f, 0.5f);
+
+        // Changing marker icon
+        BitmapDescriptor bp_G = BitmapDescriptorFactory.fromResource(R.drawable.redball_big);
+        marker.zIndex(0.0f);
+        marker.icon(bp_G);
+        googleMap.addMarker(marker);
     }
 
     public void addMarker( LatLng latLng ){
