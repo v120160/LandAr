@@ -46,6 +46,7 @@ import androidx.appcompat.app.AppCompatActivity;
 import androidx.fragment.app.Fragment;
 import androidx.fragment.app.FragmentManager;
 import androidx.fragment.app.FragmentOnAttachListener;
+import hu.hero.landar.Geo.Point3;
 import hu.hero.landar.database.PICDATA;
 import hu.hero.landar.helpers.GeoPermissionsHelper;
 import hu.hero.landar.helpers.MapTouchWrapper;
@@ -274,7 +275,9 @@ public class MainActivity extends AppCompatActivity implements
     }
 
     // 從伺服路要相片清單回來
-    public void onReadPicListFinish( List<PICDATA> list ){
+    public void onReadDataFinish( GetDataByDistance.SpatialIndexPackage pack ){
+        List <PICDATA> picList = pack.pics;
+        List<List<Point3>>  ptLists = pack.ptlists;
         Earth earth = arFragment.getArSceneView().getSession().getEarth();
         if (earth.getTrackingState() == TrackingState.TRACKING ) {
             // 高程暫時用手機高程
@@ -285,7 +288,24 @@ public class MainActivity extends AppCompatActivity implements
             float qy = 0f;
             float qz = 0f;
             float qw = 1f;
-            for( PICDATA pic : list ) {
+            // 宗地
+            for( List<Point3> list :ptLists ) {
+                for (Point3 p : list) {
+                    double lat = p.y;
+                    double lon = p.x;
+                    Anchor anchor = earth.createAnchor( lat, lon, altitude, qx, qy, qz, qw);
+                    AnchorNode anchorNode = new AnchorNode(anchor);
+                    anchorNode.setParent(arFragment.getArSceneView().getScene());
+                    // Create the transformable model and add it to the anchor.
+                    TransformableNode model = new TransformableNode(arFragment.getTransformationSystem());
+                    model.setParent(anchorNode);
+                    model.setRenderable( mModel );
+                    // .animate(true).start();
+                    model.select();
+                }
+            }
+                    // 相片
+            for( PICDATA pic : picList ) {
                 double lat = pic.getCoordy();
                 double lon = pic.getCoordx();
                 Anchor anchor = earth.createAnchor( lat, lon, altitude, qx, qy, qz, qw);
@@ -314,11 +334,20 @@ public class MainActivity extends AppCompatActivity implements
             }
         }
         // 在GoogleMap 新增 Marker
-        for( PICDATA pic : list ) {
+        for( List<Point3> list :ptLists ) {
+            for( Point3 p : list ) {
+                double lat = p.y;
+                double lon = p.x;
+                mActivity.mMapView.addPicMarker(new LatLng(lat, lon));
+            }
+        }
+/*
+            for( PICDATA pic : picList ) {
             double lat = pic.getCoordy();
             double lon = pic.getCoordx();
             mActivity.mMapView.addPicMarker( new LatLng(lat, lon) );
         }
+ */
     }
 
     @Override
