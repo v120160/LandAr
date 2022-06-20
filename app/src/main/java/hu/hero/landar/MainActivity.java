@@ -50,7 +50,7 @@ import hu.hero.landar.database.PICDATA;
 import hu.hero.landar.helpers.GeoPermissionsHelper;
 import hu.hero.landar.helpers.MapTouchWrapper;
 import hu.hero.landar.helpers.MapView;
-import hu.hero.landar.net.GetPicsByDistance;
+import hu.hero.landar.net.GetDataByDistance;
 
 public class MainActivity extends AppCompatActivity implements
         FragmentOnAttachListener,
@@ -188,8 +188,8 @@ public class MainActivity extends AppCompatActivity implements
                             mBaseLat , mBaseLon ) > 50 ){
                     mBaseLat = cameraGeospatialPose.getLatitude();
                     mBaseLon = cameraGeospatialPose.getLongitude();
-                    GetPicsByDistance GPBD = new GetPicsByDistance(mActivity);
-                    GPBD.get( "VD01" , mBaseLat, mBaseLon, 500  );
+                    GetDataByDistance GDBD = new GetDataByDistance(mActivity);
+                    GDBD.get( "VD01" , mBaseLat, mBaseLon, 500  );
                 }
 
 

@@ -15,22 +15,30 @@ import retrofit2.Retrofit;
 import retrofit2.converter.gson.GsonConverterFactory;
 import retrofit2.http.GET;
 import retrofit2.http.Query;
+import javafx.geometry.Point3D;
 
-public class GetPicsByDistance{
+
+public class GetDataByDistance{
     private String  mUserId;
     private Context mContext;
     private String  mResponse;
 
-    // 內崁 service
-    private interface MyAPIService {
-        @GET("/getPicsByDistance")
-        Call<List<PICDATA>> getPicsByDistance(@Query("userId") String user,
-                                              @Query("lat") double lat,
-                                              @Query("lon") double lon,
-                                              @Query("distance") double distance );
+    private class SpatialIndexPackage{
+        public List<Integer> parnums;
+        public List<List<Point3D>> ptlists;
+        public List<PICDATA> pics;
     }
 
-    public GetPicsByDistance(Context context) {
+    // 內崁 service
+    private interface MyAPIService {
+        @GET("/distanceSearch")
+        Call<List<PICDATA>> distanceSearch(@Query("userId") String user,
+                                             @Query("lat") double lat,
+                                             @Query("lon") double lon,
+                                             @Query("distance") double distance );
+    }
+
+    public GetDataByDistance(Context context) {
         mContext = context;
     }
 
@@ -46,7 +54,7 @@ public class GetPicsByDistance{
 
         MyAPIService service = retrofit.create(MyAPIService.class);
 
-        Call<List<PICDATA>> call = service.getPicsByDistance(userid, lat, lon, distance );
+        Call<List<PICDATA>> call = service.distanceSearch(userid, lat, lon, distance );
 
         // 此段為非同步請求
         call.enqueue(new Callback<List<PICDATA>>() {
