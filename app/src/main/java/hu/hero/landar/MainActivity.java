@@ -190,7 +190,7 @@ public class MainActivity extends AppCompatActivity implements
 //                        CameraStream.DepthOcclusionMode.DEPTH_OCCLUSION_ENABLED );
         arSceneView.getCameraStream().setDepthOcclusionMode(
                         CameraStream.DepthOcclusionMode.DEPTH_OCCLUSION_DISABLED );
-        
+
         // 取消平面偵測的白點點
         arSceneView.getPlaneRenderer().setVisible(false);
 
