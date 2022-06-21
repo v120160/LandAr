@@ -33,9 +33,13 @@ import com.google.android.gms.maps.model.CameraPosition;
 import com.google.android.gms.maps.model.LatLng;
 import com.google.android.gms.maps.model.Marker;
 import com.google.android.gms.maps.model.MarkerOptions;
+import com.google.android.gms.maps.model.PolygonOptions;
+
+import hu.hero.landar.Geo.Point3;
 import hu.hero.landar.R;
 
 import java.util.ArrayList;
+import java.util.List;
 
 import hu.hero.landar.MainActivity;
 
@@ -95,6 +99,19 @@ public class MapView {
 
             googleMap.moveCamera(CameraUpdateFactory.newCameraPosition(cameraPositionBuilder.build()));
         });
+    }
+
+    /*
+         加入經界線
+    */
+    public void addParcelMarker( List<Point3> ptlist ){
+        PolygonOptions polygonOptions = new PolygonOptions();
+        for ( Point3 bp : ptlist ) {
+                LatLng L =new LatLng(bp.y, bp.x);
+                polygonOptions.add(L);
+        }
+        polygonOptions.strokeColor(Color.BLUE).strokeWidth(4.0f);
+        googleMap.addPolygon(polygonOptions);
     }
 
     public void addPicMarker( LatLng  latlon ){

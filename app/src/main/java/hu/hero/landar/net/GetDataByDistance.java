@@ -45,8 +45,8 @@ public class GetDataByDistance{
     public void get(String userid , double lat , double lon , double distance ) {
         mUserId = userid;
 //        String url = LitePal.findFirst( SETTING.class ).getServerUrl();
-//        String url = "http://192.168.1.25:8082";
-        String url = "http://192.168.0.106:8082";
+        String url = "http://192.168.1.25:8082";
+//        String url = "http://192.168.0.106:8082";
 
         Retrofit retrofit = new Retrofit.Builder()
                 .baseUrl(url)

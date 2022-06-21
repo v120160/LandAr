@@ -63,15 +63,37 @@ public class MainActivity extends AppCompatActivity implements
     private static final double MIN_OPENGL_VERSION = 3.0;
     private ArFragment arFragment;
     private Renderable mModel;
+    private Renderable mBPointModel;
     private ViewRenderable mViewRenderable;
     public MapView mMapView = null;
     private AnchorNode mLastAnchor = null;
+    private Earth mEarth = null;
 
     private double mBaseLat = 0;
     private double mBaseLon = 119.0;
 
     private class PicAnchar extends Anchor{
         public LatLng pos;
+    }
+
+    private Earth getEarth(){
+        if( arFragment != null ) {
+            ArSceneView sceneview = arFragment.getArSceneView();
+            if (sceneview != null) {
+                Session session = sceneview.getSession();
+                if (session != null) {
+                    return session.getEarth();
+                }
+            }
+        }
+        return null;
+    }
+
+    private boolean getEarthTrackingState(){
+        mEarth = getEarth();
+        if( mEarth == null )
+            return false;
+        return mEarth.getTrackingState() == TrackingState.TRACKING;
     }
 
     @Override
@@ -97,15 +119,14 @@ public class MainActivity extends AppCompatActivity implements
         mapTouchWrapper.setup(screenLocation -> {
             LatLng latLng = mMapView.googleMap.getProjection().fromScreenLocation(screenLocation);
             Log.d("胡征懷",latLng.toString());
-            Earth earth = arFragment.getArSceneView().getSession().getEarth();
-            if (earth.getTrackingState() == TrackingState.TRACKING ){
-                double altitude = earth.getCameraGeospatialPose().getAltitude() ;
+            if ( getEarthTrackingState() ){
+                double altitude = mEarth.getCameraGeospatialPose().getAltitude() ;
                 // The rotation quaternion of the anchor in the East-Up-South (EUS) coordinate system.
                 float qx = 0f;
                 float qy = 0f;
                 float qz = 0f;
                 float qw = 1f;
-                Anchor anchor = earth.createAnchor(latLng.latitude, latLng.longitude, altitude, qx, qy, qz, qw);
+                Anchor anchor = mEarth.createAnchor(latLng.latitude, latLng.longitude, altitude, qx, qy, qz, qw);
                 addAnchor(anchor, latLng );
             }
             mActivity.mMapView.addPicMarker( latLng );
@@ -160,7 +181,6 @@ public class MainActivity extends AppCompatActivity implements
     @Override
     public void onViewCreated(ArSceneView arSceneView) {
         arFragment.setOnViewCreatedListener(null);
-
         // Fine adjust the maximum frame rate
         arSceneView.setFrameRateFactor(SceneView.FrameRate.FULL);
 
@@ -168,16 +188,17 @@ public class MainActivity extends AppCompatActivity implements
         // 啟用深度及遮蔽
 //        arSceneView.getCameraStream().setDepthOcclusionMode(
 //                        CameraStream.DepthOcclusionMode.DEPTH_OCCLUSION_ENABLED );
-
+        arSceneView.getCameraStream().setDepthOcclusionMode(
+                        CameraStream.DepthOcclusionMode.DEPTH_OCCLUSION_DISABLED );
+        
         // 取消平面偵測的白點點
         arSceneView.getPlaneRenderer().setVisible(false);
 
         // 設定 scene 每次畫面更新時呼叫
         arSceneView.getScene().addOnUpdateListener(frameTime->{
-            Earth earth = arSceneView.getSession().getEarth();
-            if (earth.getTrackingState() == TrackingState.TRACKING ){
+            if ( getEarthTrackingState() ){
                 // TODO: the Earth object may be used here.
-                GeospatialPose cameraGeospatialPose = earth.getCameraGeospatialPose();
+                GeospatialPose cameraGeospatialPose = mEarth.getCameraGeospatialPose();
                 mMapView.updateMapPosition(
                         cameraGeospatialPose.getLatitude(),
                         cameraGeospatialPose.getLongitude(),
@@ -190,7 +211,7 @@ public class MainActivity extends AppCompatActivity implements
                     mBaseLat = cameraGeospatialPose.getLatitude();
                     mBaseLon = cameraGeospatialPose.getLongitude();
                     GetDataByDistance GDBD = new GetDataByDistance(mActivity);
-                    GDBD.get( "VD01" , mBaseLat, mBaseLon, 500  );
+                    GDBD.get( "VD01" , mBaseLat, mBaseLon, 100  );
                 }
 
 
@@ -246,7 +267,23 @@ public class MainActivity extends AppCompatActivity implements
                     Toast.makeText(this, "Unable to load model", Toast.LENGTH_LONG).show();
                     return null;
                 });
+        loadBPointModel();
     }
+
+    /*
+        建立界址點 Model
+    */
+    private void loadBPointModel(){
+        MaterialFactory.makeOpaqueWithColor(this, new Color(android.graphics.Color.BLUE))
+                .thenAccept(
+                        material -> {
+                            // 金屬表面
+                            material.setFloat(MaterialFactory.MATERIAL_METALLIC, 1f);
+                            // 球型
+                            mBPointModel = ShapeFactory.makeSphere(0.5f, new Vector3(0.0f, 0.15f, 0.0f), material);
+                        });
+    }
+
     @Override
     public void onTapPlane(HitResult hitResult, Plane plane, MotionEvent motionEvent) {
         if ( mModel == null || mViewRenderable == null) {
@@ -274,14 +311,21 @@ public class MainActivity extends AppCompatActivity implements
         titleNode.setEnabled(true);
     }
 
-    // 從伺服路要相片清單回來
+    /*
+       從伺服路要圖資回來
+    */
     public void onReadDataFinish( GetDataByDistance.SpatialIndexPackage pack ){
+        if( pack == null )
+        {
+            Toast.makeText(this, "伺服主機取得資料失敗", Toast.LENGTH_LONG)
+                    .show();
+            return;
+        }
         List <PICDATA> picList = pack.pics;
         List<List<Point3>>  ptLists = pack.ptlists;
-        Earth earth = arFragment.getArSceneView().getSession().getEarth();
-        if (earth.getTrackingState() == TrackingState.TRACKING ) {
+        if( getEarthTrackingState() ){
             // 高程暫時用手機高程
-            double altitude = earth.getCameraGeospatialPose().getAltitude() ;
+            double altitude = mEarth.getCameraGeospatialPose().getAltitude()-5 ;
 
             // The rotation quaternion of the anchor in the East-Up-South (EUS) coordinate system.
             float qx = 0f;
@@ -290,25 +334,40 @@ public class MainActivity extends AppCompatActivity implements
             float qw = 1f;
             // 宗地
             for( List<Point3> list :ptLists ) {
-                for (Point3 p : list) {
+                AnchorNode lastAnchorNode=null;
+                for( int i=0 ; i<list.size() ; i++ ){
+                    Point3 p = list.get(i);
                     double lat = p.y;
                     double lon = p.x;
-                    Anchor anchor = earth.createAnchor( lat, lon, altitude, qx, qy, qz, qw);
+                    Anchor anchor = mEarth.createAnchor( lat, lon, altitude, qx, qy, qz, qw);
                     AnchorNode anchorNode = new AnchorNode(anchor);
                     anchorNode.setParent(arFragment.getArSceneView().getScene());
                     // Create the transformable model and add it to the anchor.
                     TransformableNode model = new TransformableNode(arFragment.getTransformationSystem());
                     model.setParent(anchorNode);
-                    model.setRenderable( mModel );
+                    model.setRenderable( mBPointModel );
                     // .animate(true).start();
                     model.select();
+                    if( i==0 )
+                        lastAnchorNode = anchorNode;
+                    if( i > 0 ) {
+                        addLine(lastAnchorNode, anchorNode);
+                        lastAnchorNode = anchorNode;
+                    }
                 }
+/*                if( list.size() > 0 ){
+                    list.add( list.get(0) );
+                    for( int i=0 ; i<list.size()-1 ; i++ ){
+                       addLineAnchor( list.get(i) , list.get(i+1) );
+                    }
+                }
+ */
             }
                     // 相片
             for( PICDATA pic : picList ) {
                 double lat = pic.getCoordy();
                 double lon = pic.getCoordx();
-                Anchor anchor = earth.createAnchor( lat, lon, altitude, qx, qy, qz, qw);
+                Anchor anchor = mEarth.createAnchor( lat, lon, altitude, qx, qy, qz, qw);
                 AnchorNode anchorNode = new AnchorNode(anchor);
                 anchorNode.setParent(arFragment.getArSceneView().getScene());
                 // Create the transformable model and add it to the anchor.
@@ -320,7 +379,7 @@ public class MainActivity extends AppCompatActivity implements
 
                 // 計算告示牌方向，讓牌子都面向使用者,但是當使用者移動時，也要詬調整方位 @@
                 float az=0;
-                GeospatialPose base = earth.getCameraGeospatialPose();
+                GeospatialPose base = mEarth.getCameraGeospatialPose();
                 double daz = Math.atan(( lat-base.getLatitude())/(lon-base.getLongitude()));
                 az = (float)(daz * 180f / Math.PI ) + 90f;
                 // 告示牌
@@ -333,13 +392,9 @@ public class MainActivity extends AppCompatActivity implements
                 titleNode.setEnabled(true);
             }
         }
-        // 在GoogleMap 新增 Marker
+        // 在GoogleMap 新增經界線 Marker
         for( List<Point3> list :ptLists ) {
-            for( Point3 p : list ) {
-                double lat = p.y;
-                double lon = p.x;
-                mActivity.mMapView.addPicMarker(new LatLng(lat, lon));
-            }
+            mMapView.addParcelMarker( list );
         }
 /*
             for( PICDATA pic : picList ) {
@@ -431,6 +486,30 @@ public class MainActivity extends AppCompatActivity implements
                 );
     }
 
+    private void addLine( AnchorNode a1 , AnchorNode a2 ) {
+        Vector3 point1 = a1.getWorldPosition();
+        Vector3 point2 = a2.getWorldPosition();
+        final Vector3 difference = Vector3.subtract(point1, point2);
+        final Vector3 directionFromTopToBottom = difference.normalized();
+        final Quaternion rotationFromAToB =
+                Quaternion.lookRotation(directionFromTopToBottom, Vector3.up());
+        MaterialFactory.makeOpaqueWithColor(getApplicationContext(), new Color(0, 0, 255))
+            .thenAccept(
+            material -> {
+                            /* Then, create a rectangular prism, using ShapeFactory.makeCube() and use the difference vector
+                                   to extend to the necessary length.  */
+                ModelRenderable lineCube = ShapeFactory.makeCube(
+                        new Vector3(.25f, .25f, difference.length()),
+                        Vector3.zero(), material);
+                            /* Last, set the world rotation of the node to the rotation calculated earlier and set the world position to
+                                   the midpoint between the given points . */
+                Node node = new Node();
+                node.setParent(a2);
+                node.setRenderable(lineCube);
+                node.setWorldPosition(Vector3.add(point1, point2).scaled(.5f));
+                node.setWorldRotation(rotationFromAToB);
+            });
+    }
     public static double distance( double LatA , double LonA , double LatB , double LonB )
     {
         // 東西經,南北緯處理,只在國內可以不處理(假設都是北半球,南半球只有澳洲具有應用意義)
