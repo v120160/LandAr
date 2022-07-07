@@ -9,6 +9,7 @@ import java.util.List;
 import hu.hero.landar.Geo.Point3;
 import hu.hero.landar.MainActivity;
 import hu.hero.landar.database.PICDATA;
+import hu.hero.landar.database.PICDATA3D;
 import retrofit2.Call;
 import retrofit2.Callback;
 import retrofit2.Response;
@@ -26,7 +27,7 @@ public class GetDataByDistance{
     public class SpatialIndexPackage{
         public List<Integer> parnums;
         public List<List<Point3>> ptlists;
-        public List<PICDATA> pics;
+        public List<PICDATA3D> pics;
     }
 
     // 內崁 service

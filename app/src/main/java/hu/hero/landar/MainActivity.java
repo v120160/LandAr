@@ -1,14 +1,22 @@
 package hu.hero.landar;
 
+import android.animation.ObjectAnimator;
 import android.net.Uri;
 import android.os.Bundle;
+import android.util.ArraySet;
 import android.util.Log;
+import android.view.Gravity;
 import android.view.MotionEvent;
+import android.view.animation.LinearInterpolator;
 import android.widget.Toast;
 
+import com.google.android.filament.gltfio.Animator;
+import com.google.android.filament.gltfio.FilamentAsset;
+import com.google.android.gms.maps.CameraUpdateFactory;
 import com.google.android.gms.maps.GoogleMap;
 import com.google.android.gms.maps.OnMapReadyCallback;
 import com.google.android.gms.maps.SupportMapFragment;
+import com.google.android.gms.maps.model.CameraPosition;
 import com.google.android.gms.maps.model.LatLng;
 import com.google.ar.core.Anchor;
 import com.google.ar.core.Config;
@@ -26,6 +34,7 @@ import com.google.ar.sceneform.Node;
 import com.google.ar.sceneform.SceneView;
 import com.google.ar.sceneform.Sceneform;
 import com.google.ar.sceneform.math.Quaternion;
+import com.google.ar.sceneform.math.QuaternionEvaluator;
 import com.google.ar.sceneform.math.Vector3;
 import com.google.ar.sceneform.rendering.CameraStream;
 import com.google.ar.sceneform.rendering.Color;
@@ -40,6 +49,9 @@ import com.google.ar.sceneform.ux.TransformableNode;
 
 import java.lang.ref.WeakReference;
 import java.util.List;
+import java.util.Set;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutionException;
 
 import androidx.annotation.NonNull;
 import androidx.appcompat.app.AppCompatActivity;
@@ -48,6 +60,7 @@ import androidx.fragment.app.FragmentManager;
 import androidx.fragment.app.FragmentOnAttachListener;
 import hu.hero.landar.Geo.Point3;
 import hu.hero.landar.database.PICDATA;
+import hu.hero.landar.database.PICDATA3D;
 import hu.hero.landar.helpers.GeoPermissionsHelper;
 import hu.hero.landar.helpers.MapTouchWrapper;
 import hu.hero.landar.helpers.MapView;
@@ -64,10 +77,17 @@ public class MainActivity extends AppCompatActivity implements
     private ArFragment arFragment;
     private Renderable mModel;
     private Renderable mBPointModel;
+    private Renderable mYellowTubeModel;
+    private Renderable mTubeModel;
+    private Renderable mBlueTubeModel;
     private ViewRenderable mViewRenderable;
+
     public MapView mMapView = null;
     private AnchorNode mLastAnchor = null;
     private Earth mEarth = null;
+
+
+    private Anchor mTestAnchor = null;
 
     private double mBaseLat = 0;
     private double mBaseLon = 119.0;
@@ -187,7 +207,7 @@ public class MainActivity extends AppCompatActivity implements
         // Available modes: DEPTH_OCCLUSION_DISABLED, DEPTH_OCCLUSION_ENABLED
         // 啟用深度及遮蔽
 //        arSceneView.getCameraStream().setDepthOcclusionMode(
-//                        CameraStream.DepthOcclusionMode.DEPTH_OCCLUSION_ENABLED );
+//                       CameraStream.DepthOcclusionMode.DEPTH_OCCLUSION_ENABLED );
         arSceneView.getCameraStream().setDepthOcclusionMode(
                         CameraStream.DepthOcclusionMode.DEPTH_OCCLUSION_DISABLED );
 
@@ -199,15 +219,44 @@ public class MainActivity extends AppCompatActivity implements
             if ( getEarthTrackingState() ){
                 // TODO: the Earth object may be used here.
                 GeospatialPose cameraGeospatialPose = mEarth.getCameraGeospatialPose();
-                mMapView.updateMapPosition(
-                        cameraGeospatialPose.getLatitude(),
-                        cameraGeospatialPose.getLongitude(),
-                        cameraGeospatialPose.getHeading()
-                );
+                double lat = cameraGeospatialPose.getLatitude();
+                double lon = cameraGeospatialPose.getLongitude();
+                double altitute = cameraGeospatialPose.getAltitude();
+                double heading = cameraGeospatialPose.getHeading();
 
-                // 移動距離大了, 重新要相片清單
+                if( mTestAnchor == null ){
+                    // 22.615742645075027, 121.00781865835523
+                    mTestAnchor = mEarth.createAnchor(22.615742645075027,121.00781865835523,altitute,0,0,0,1);
+                    AnchorNode a1 = new AnchorNode(mTestAnchor);
+                    a1.setRenderable(mYellowTubeModel);
+                    a1.setEnabled(true);
+/*
+                    TransformableNode node = new TransformableNode(arFragment.getTransformationSystem());
+                    node.setParent(a1);
+                    node.setRenderable( mYellowTubeModel );
+                    // .animate(true).start();
+                    node.select();*/
+                }
+                else{
+                    if( mTestAnchor.getTrackingState() == TrackingState.TRACKING )
+                        Log.d("胡征懷","Anchor TRACKING");
+                    if( mTestAnchor.getTrackingState() == TrackingState.PAUSED )
+                        Log.d("胡征懷","Anchor PAUSED");
+                    if( mTestAnchor.getTrackingState() == TrackingState.STOPPED )
+                        Log.d("胡征懷","Anchor STOPPED");
+                }
+
+
+                mMapView.updateMapPosition( lat, lon, heading );
+                CameraPosition currentPlace = new CameraPosition.Builder()
+                        .target(new LatLng( lat, lon ))
+                        .bearing((float)heading).zoom(18f).build();
+                mMapView.googleMap.moveCamera(CameraUpdateFactory.newCameraPosition(currentPlace));
+
+                // 移動距離大了, 重新向伺服器要資料
                 if( distance( cameraGeospatialPose.getLatitude(), cameraGeospatialPose.getLongitude(),
                             mBaseLat , mBaseLon ) > 50 ){
+                    System.out.println("移動距離大了, 重新向伺服器要資料" );
                     mBaseLat = cameraGeospatialPose.getLatitude();
                     mBaseLon = cameraGeospatialPose.getLongitude();
                     GetDataByDistance GDBD = new GetDataByDistance(mActivity);
@@ -226,33 +275,37 @@ public class MainActivity extends AppCompatActivity implements
 
     public void loadModels() {
         WeakReference<MainActivity> weakActivity = new WeakReference<>(this);
-/*        ModelRenderable.builder()
-                .setSource(this, Uri.parse("https://storage.googleapis.com/ar-answers-in-search-models/static/Tiger/model.glb"))
-                .setIsFilamentGltf(true)
-                .setAsyncLoadEnabled(true)
-                .build()
-                .thenAccept(model -> {
-                    MainActivity activity = weakActivity.get();
-                    if (activity != null) {
-                        activity.mRenderable = model;
-                    }
-                })
-                .exceptionally(throwable -> {
-                    Toast.makeText(
-                            this, "Unable to load model", Toast.LENGTH_LONG).show();
-                    return null;
-                });
-
- */
         MaterialFactory.makeOpaqueWithColor(this, new Color(android.graphics.Color.RED))
                 .thenAccept(
                         material -> {
                             // 金屬表面
                             material.setFloat(MaterialFactory.MATERIAL_METALLIC, 1f);
-                            // 球型
-                     //       mModel = ShapeFactory.makeSphere(1.0f, new Vector3(0.0f, 0.15f, 0.0f), material);
                             // 圓柱
-                            mModel = ShapeFactory.makeCylinder(0.5f, 3f,  new Vector3(0.0f, 0.15f, 0.0f), material);
+                            mModel = ShapeFactory.makeCylinder(0.5f, 10f,  new Vector3(0.0f, 0.15f, 0.0f), material);
+                        });
+        MaterialFactory.makeOpaqueWithColor(this, new Color(android.graphics.Color.YELLOW))
+                .thenAccept(
+                        material -> {
+                            // 金屬表面
+                            material.setFloat(MaterialFactory.MATERIAL_METALLIC, 1f);
+                            // 圓柱
+                            mYellowTubeModel = ShapeFactory.makeCylinder(0.5f, 23f,  new Vector3(0.0f, 0.15f, 0.0f), material);
+                        });
+        MaterialFactory.makeOpaqueWithColor(this, new Color(android.graphics.Color.BLUE))
+                .thenAccept(
+                        material -> {
+                            // 金屬表面
+                            material.setFloat(MaterialFactory.MATERIAL_METALLIC, 1f);
+                            // 圓柱
+                            mBlueTubeModel = ShapeFactory.makeCylinder(0.5f, 3f,  new Vector3(0.0f, 0.15f, 0.0f), material);
+                        });
+        MaterialFactory.makeOpaqueWithColor(this, new Color(android.graphics.Color.rgb(255,255,0)))
+                .thenAccept(
+                        material -> {
+                            // 金屬表面
+                            material.setFloat(MaterialFactory.MATERIAL_METALLIC, 1f);
+                            // 圓柱
+                            mTubeModel = ShapeFactory.makeCylinder(0.5f, 10f,  new Vector3(0.0f, 0.15f, 0.0f), material);
                         });
         ViewRenderable.builder()
                 .setView(this, R.layout.view_model_title)
@@ -274,19 +327,21 @@ public class MainActivity extends AppCompatActivity implements
         建立界址點 Model
     */
     private void loadBPointModel(){
-        MaterialFactory.makeOpaqueWithColor(this, new Color(android.graphics.Color.BLUE))
+        MaterialFactory.makeOpaqueWithColor(this, new Color(android.graphics.Color.RED))
                 .thenAccept(
                         material -> {
                             // 金屬表面
                             material.setFloat(MaterialFactory.MATERIAL_METALLIC, 1f);
                             // 球型
-                            mBPointModel = ShapeFactory.makeSphere(0.5f, new Vector3(0.0f, 0.15f, 0.0f), material);
+//                            mBPointModel = ShapeFactory.makeSphere(0.75f, new Vector3(0.0f, 0.15f, 0.0f), material);
+                            // 圓柱
+                            mBPointModel = ShapeFactory.makeCylinder(1.0f, 5f,  new Vector3(0.0f, 0.15f, 0.0f), material);
                         });
     }
 
     @Override
     public void onTapPlane(HitResult hitResult, Plane plane, MotionEvent motionEvent) {
-        if ( mModel == null || mViewRenderable == null) {
+/*        if ( mModel == null || mViewRenderable == null) {
             Toast.makeText(this, "Loading...", Toast.LENGTH_SHORT).show();
             return;
         }
@@ -297,20 +352,54 @@ public class MainActivity extends AppCompatActivity implements
         anchorNode.setParent(arFragment.getArSceneView().getScene());
 
         // Create the transformable model and add it to the anchor.
-        TransformableNode model = new TransformableNode(arFragment.getTransformationSystem());
-        model.setParent(anchorNode);
-        model.setRenderable(this.mModel)
-                .animate(true).start();
-        model.select();
-
-        Node titleNode = new Node();
-        titleNode.setParent(model);
-        titleNode.setEnabled(false);
-        titleNode.setLocalPosition(new Vector3(0.0f, 1.0f, 0.0f));
-        titleNode.setRenderable(mViewRenderable);
-        titleNode.setEnabled(true);
+        TransformableNode node = new TransformableNode(arFragment.getTransformationSystem());
+        node.setParent(anchorNode);
+        node.setRenderable(mModel);
+        node.select();
+*/
+        createModel( hitResult.createAnchor(), arFragment );
     }
 
+    private void createModel(Anchor anchor, ArFragment arFragment) {
+
+        CompletableFuture<ModelRenderable> marker = ModelRenderable
+                .builder()
+                .setSource(this
+                        , Uri.parse("models/scene.gltf"))
+                .setIsFilamentGltf(true)
+                .setAsyncLoadEnabled(true)
+                .build();
+        CompletableFuture.allOf(marker)
+                .handle((ok, ex) -> {
+                    try {
+                        AnchorNode anchorNode = new AnchorNode(anchor);
+                        anchorNode.setRenderable(marker.get());
+                        anchorNode.setLocalScale(new Vector3(0.3f, 0.3f, 0.3f));
+                        arFragment.getArSceneView().getScene().addChild(anchorNode);
+/*
+                        Node modelNode1 = new Node();
+                        modelNode1.setRenderable(dragon.get());
+                        modelNode1.setLocalScale(new Vector3(0.3f, 0.3f, 0.3f));
+                        modelNode1.setLocalRotation(Quaternion.multiply(
+                                Quaternion.axisAngle(new Vector3(1f, 0f, 0f), 45),
+                                Quaternion.axisAngle(new Vector3(0f, 1f, 0f), 75)));
+                        modelNode1.setLocalPosition(new Vector3(0f, 0f, -1.0f));
+                        arFragment.getArSceneView().getScene().addChild(modelNode1);
+
+
+                        Node modelNode3 = new Node();
+                        modelNode3.setRenderable(dragon.get());
+                        modelNode3.setLocalScale(new Vector3(0.3f, 0.3f, 0.3f));
+                        modelNode3.setLocalRotation(Quaternion.axisAngle(new Vector3(0f, 1f, 0f), 35));
+                        modelNode3.setLocalPosition(new Vector3(0f, 0f, -1.0f));
+                        arFragment.getArSceneView().getScene().addChild(modelNode3);
+*/
+                    } catch (InterruptedException | ExecutionException ignore) {
+
+                    }
+                    return null;
+                });
+    }
     /*
        從伺服路要圖資回來
     */
@@ -321,25 +410,23 @@ public class MainActivity extends AppCompatActivity implements
                     .show();
             return;
         }
-        List <PICDATA> picList = pack.pics;
+
+        List <PICDATA3D> picList = pack.pics;
         List<List<Point3>>  ptLists = pack.ptlists;
         if( getEarthTrackingState() ){
-            // 高程暫時用手機高程
-            double altitude = mEarth.getCameraGeospatialPose().getAltitude()-5 ;
-
             // The rotation quaternion of the anchor in the East-Up-South (EUS) coordinate system.
             float qx = 0f;
             float qy = 0f;
             float qz = 0f;
             float qw = 1f;
+/*
             // 宗地
             for( List<Point3> list :ptLists ) {
-                AnchorNode lastAnchorNode=null;
+                AnchorNode lastNode=null;
+                AnchorNode firstNode=null;
                 for( int i=0 ; i<list.size() ; i++ ){
                     Point3 p = list.get(i);
-                    double lat = p.y;
-                    double lon = p.x;
-                    Anchor anchor = mEarth.createAnchor( lat, lon, altitude, qx, qy, qz, qw);
+                    Anchor anchor = mEarth.createAnchor( p.y, p.x, p.h+3, qx, qy, qz, qw);
                     AnchorNode anchorNode = new AnchorNode(anchor);
                     anchorNode.setParent(arFragment.getArSceneView().getScene());
                     // Create the transformable model and add it to the anchor.
@@ -348,26 +435,24 @@ public class MainActivity extends AppCompatActivity implements
                     model.setRenderable( mBPointModel );
                     // .animate(true).start();
                     model.select();
-                    if( i==0 )
-                        lastAnchorNode = anchorNode;
+                    if( i==0 ) {
+                        lastNode = firstNode = anchorNode;
+                    }
                     if( i > 0 ) {
-                        addLine(lastAnchorNode, anchorNode);
-                        lastAnchorNode = anchorNode;
+                        addLine(lastNode, anchorNode);
+                        lastNode = anchorNode;
                     }
                 }
-/*                if( list.size() > 0 ){
-                    list.add( list.get(0) );
-                    for( int i=0 ; i<list.size()-1 ; i++ ){
-                       addLineAnchor( list.get(i) , list.get(i+1) );
-                    }
-                }
- */
+                addLine(lastNode, firstNode);
             }
-                    // 相片
-            for( PICDATA pic : picList ) {
+
+ */
+            // 相片
+            for( PICDATA3D pic : picList ) {
                 double lat = pic.getCoordy();
                 double lon = pic.getCoordx();
-                Anchor anchor = mEarth.createAnchor( lat, lon, altitude, qx, qy, qz, qw);
+                double h = pic.getElevation();
+                Anchor anchor = mEarth.createAnchor( lat, lon, h, qx, qy, qz, qw);
                 AnchorNode anchorNode = new AnchorNode(anchor);
                 anchorNode.setParent(arFragment.getArSceneView().getScene());
                 // Create the transformable model and add it to the anchor.
@@ -396,13 +481,12 @@ public class MainActivity extends AppCompatActivity implements
         for( List<Point3> list :ptLists ) {
             mMapView.addParcelMarker( list );
         }
-/*
-            for( PICDATA pic : picList ) {
+        for( PICDATA3D pic : picList ) {
             double lat = pic.getCoordy();
             double lon = pic.getCoordx();
             mActivity.mMapView.addPicMarker( new LatLng(lat, lon) );
         }
- */
+
     }
 
     @Override
@@ -518,4 +602,5 @@ public class MainActivity extends AppCompatActivity implements
         double C = Math.sin(Math.toRadians(LatA)) * Math.sin(Math.toRadians(LatB)) + Math.cos(Math.toRadians(LatA)) * Math.cos(Math.toRadians(LatB)) * Math.cos(Math.toRadians(LonA - LonB));
         return (R * Math.acos(C));
     }
+
 }

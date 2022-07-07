@@ -51,7 +51,6 @@ public class MapView {
     private boolean setInitialCameraPosition = false;
     private Marker cameraMarker = null;
     private boolean cameraIdle = true;
-    public Marker earthMarker = null;
     private ArrayList<Marker> mMarkers = new ArrayList<>();
 
     public MapView(MainActivity activity , GoogleMap googleMap ) {
@@ -65,7 +64,6 @@ public class MapView {
         settings.setScrollGesturesEnabled(false);
 
         cameraMarker = createMarker(CAMERA_MARKER_COLOR);
-        earthMarker = createMarker(EARTH_MARKER_COLOR);
 
         googleMap.setOnMarkerClickListener((marker) -> false);
 
