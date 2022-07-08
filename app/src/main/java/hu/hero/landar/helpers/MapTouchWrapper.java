@@ -10,7 +10,7 @@ import android.widget.FrameLayout;
 import static java.lang.Math.sqrt;
 
 
-public class MapTouchWrapper extends FrameLayout {
+public class MapTouchWrapper extends FrameLayout{//RoundCornerLayout {
     private int      touchSlop = 0;
     private Point    down = null;
     private Callable listener = null;

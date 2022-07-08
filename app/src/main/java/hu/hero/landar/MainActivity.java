@@ -59,11 +59,14 @@ import androidx.fragment.app.Fragment;
 import androidx.fragment.app.FragmentManager;
 import androidx.fragment.app.FragmentOnAttachListener;
 import hu.hero.landar.Geo.Point3;
+import hu.hero.landar.common.JumpingNode;
+import hu.hero.landar.common.RotatingNode;
 import hu.hero.landar.database.PICDATA;
 import hu.hero.landar.database.PICDATA3D;
 import hu.hero.landar.helpers.GeoPermissionsHelper;
 import hu.hero.landar.helpers.MapTouchWrapper;
 import hu.hero.landar.helpers.MapView;
+import hu.hero.landar.helpers.RoundCornerLayout;
 import hu.hero.landar.net.GetDataByDistance;
 
 public class MainActivity extends AppCompatActivity implements
@@ -75,7 +78,7 @@ public class MainActivity extends AppCompatActivity implements
     private MainActivity mActivity;
     private static final double MIN_OPENGL_VERSION = 3.0;
     private ArFragment arFragment;
-    private Renderable mModel;
+    private Renderable mPicModel;
     private Renderable mBPointModel;
     private Renderable mYellowTubeModel;
     private Renderable mTubeModel;
@@ -85,9 +88,6 @@ public class MainActivity extends AppCompatActivity implements
     public MapView mMapView = null;
     private AnchorNode mLastAnchor = null;
     private Earth mEarth = null;
-
-
-    private Anchor mTestAnchor = null;
 
     private double mBaseLat = 0;
     private double mBaseLon = 119.0;
@@ -135,10 +135,12 @@ public class MainActivity extends AppCompatActivity implements
         loadModels();
 
         // 設定點擊地圖時的動作
-        MapTouchWrapper mapTouchWrapper = findViewById(R.id.map_wrapper);
-        mapTouchWrapper.setup(screenLocation -> {
+//        MapTouchWrapper mapTouchWrapper = findViewById(R.id.map_wrapper);
+        RoundCornerLayout mapTouchWrapper = findViewById(R.id.map_wrapper);
+        mapTouchWrapper.setCornerEnabled(true,true,false,false);
+/*        mapTouchWrapper.setup(screenLocation -> {
             LatLng latLng = mMapView.googleMap.getProjection().fromScreenLocation(screenLocation);
-            Log.d("胡征懷",latLng.toString());
+//            Log.d("胡征懷",latLng.toString());
             if ( getEarthTrackingState() ){
                 double altitude = mEarth.getCameraGeospatialPose().getAltitude() ;
                 // The rotation quaternion of the anchor in the East-Up-South (EUS) coordinate system.
@@ -150,9 +152,9 @@ public class MainActivity extends AppCompatActivity implements
                 addAnchor(anchor, latLng );
             }
             mActivity.mMapView.addPicMarker( latLng );
-        });
+        });*/
 
-
+/*
         SupportMapFragment mapFragment = (SupportMapFragment) mActivity.getSupportFragmentManager().findFragmentById(R.id.map);
         mapFragment.getMapAsync(new OnMapReadyCallback() {
             @Override
@@ -160,21 +162,7 @@ public class MainActivity extends AppCompatActivity implements
                 mMapView = new MapView(mActivity, googleMap);
             }
         });
-
-/*
-        // Set up the Hello AR renderer.
-        mRenderer = new HelloGeoRenderer(mActivity);
-        getLifecycle().addObserver(mRenderer);
-
-        // Set up Hello AR UI.
-        view = new HelloGeoView(this);
-        getLifecycle().addObserver(view);
-        setContentView(view.root);
-
-        // Sets up an example renderer using our HelloGeoRenderer.
-        new SampleRender(view.surfaceView, mRenderer, getAssets());
-
- */
+*/
     }
 
     @Override
@@ -224,34 +212,8 @@ public class MainActivity extends AppCompatActivity implements
                 double altitute = cameraGeospatialPose.getAltitude();
                 double heading = cameraGeospatialPose.getHeading();
 
-                if( mTestAnchor == null ){
-                    // 22.615742645075027, 121.00781865835523
-                    mTestAnchor = mEarth.createAnchor(22.615742645075027,121.00781865835523,altitute,0,0,0,1);
-                    AnchorNode a1 = new AnchorNode(mTestAnchor);
-                    a1.setRenderable(mYellowTubeModel);
-                    a1.setEnabled(true);
-/*
-                    TransformableNode node = new TransformableNode(arFragment.getTransformationSystem());
-                    node.setParent(a1);
-                    node.setRenderable( mYellowTubeModel );
-                    // .animate(true).start();
-                    node.select();*/
-                }
-                else{
-                    if( mTestAnchor.getTrackingState() == TrackingState.TRACKING )
-                        Log.d("胡征懷","Anchor TRACKING");
-                    if( mTestAnchor.getTrackingState() == TrackingState.PAUSED )
-                        Log.d("胡征懷","Anchor PAUSED");
-                    if( mTestAnchor.getTrackingState() == TrackingState.STOPPED )
-                        Log.d("胡征懷","Anchor STOPPED");
-                }
-
-
-                mMapView.updateMapPosition( lat, lon, heading );
-                CameraPosition currentPlace = new CameraPosition.Builder()
-                        .target(new LatLng( lat, lon ))
-                        .bearing((float)heading).zoom(18f).build();
-                mMapView.googleMap.moveCamera(CameraUpdateFactory.newCameraPosition(currentPlace));
+                if( mMapView != null )
+                    mMapView.updateMapPosition( lat, lon, heading );
 
                 // 移動距離大了, 重新向伺服器要資料
                 if( distance( cameraGeospatialPose.getLatitude(), cameraGeospatialPose.getLongitude(),
@@ -274,6 +236,26 @@ public class MainActivity extends AppCompatActivity implements
     }
 
     public void loadModels() {
+
+        CompletableFuture<ModelRenderable> marker = ModelRenderable
+                .builder()
+                .setSource(this
+                        , Uri.parse("models/scene.gltf"))
+                .setIsFilamentGltf(true)
+                .setAsyncLoadEnabled(true)
+                .build();
+        CompletableFuture.allOf(marker)
+                .handle((ok, ex) -> {
+                    try {
+                        mPicModel = marker.get();
+                    } catch (InterruptedException | ExecutionException ignore) {
+
+                    }
+                    return null;
+                });
+
+
+
         WeakReference<MainActivity> weakActivity = new WeakReference<>(this);
         MaterialFactory.makeOpaqueWithColor(this, new Color(android.graphics.Color.RED))
                 .thenAccept(
@@ -281,7 +263,7 @@ public class MainActivity extends AppCompatActivity implements
                             // 金屬表面
                             material.setFloat(MaterialFactory.MATERIAL_METALLIC, 1f);
                             // 圓柱
-                            mModel = ShapeFactory.makeCylinder(0.5f, 10f,  new Vector3(0.0f, 0.15f, 0.0f), material);
+                            mBPointModel = ShapeFactory.makeCylinder(0.5f, 10f,  new Vector3(0.0f, 0.15f, 0.0f), material);
                         });
         MaterialFactory.makeOpaqueWithColor(this, new Color(android.graphics.Color.YELLOW))
                 .thenAccept(
@@ -339,66 +321,33 @@ public class MainActivity extends AppCompatActivity implements
                         });
     }
 
+    /*
+        點擊螢幕畫面時
+    */
     @Override
     public void onTapPlane(HitResult hitResult, Plane plane, MotionEvent motionEvent) {
-/*        if ( mModel == null || mViewRenderable == null) {
-            Toast.makeText(this, "Loading...", Toast.LENGTH_SHORT).show();
-            return;
-        }
-
-        // Create the Anchor.
         Anchor anchor = hitResult.createAnchor();
-        AnchorNode anchorNode = new AnchorNode(anchor);
-        anchorNode.setParent(arFragment.getArSceneView().getScene());
-
-        // Create the transformable model and add it to the anchor.
-        TransformableNode node = new TransformableNode(arFragment.getTransformationSystem());
-        node.setParent(anchorNode);
-        node.setRenderable(mModel);
-        node.select();
-*/
-        createModel( hitResult.createAnchor(), arFragment );
+        AnchorNode baseNode = new AnchorNode(anchor);
+        JumpingNode jNode = new JumpingNode();
+        jNode.setParent( baseNode );
+        RotatingNode picNode = new RotatingNode(false);
+        picNode.setRenderable( mPicModel );
+        picNode.setParent( jNode );
+        picNode.setLocalScale(new Vector3(0.2f, 0.2f, 0.2f));
+        arFragment.getArSceneView().getScene().addChild(baseNode);
     }
 
-    private void createModel(Anchor anchor, ArFragment arFragment) {
-
-        CompletableFuture<ModelRenderable> marker = ModelRenderable
-                .builder()
-                .setSource(this
-                        , Uri.parse("models/scene.gltf"))
-                .setIsFilamentGltf(true)
-                .setAsyncLoadEnabled(true)
-                .build();
-        CompletableFuture.allOf(marker)
-                .handle((ok, ex) -> {
-                    try {
-                        AnchorNode anchorNode = new AnchorNode(anchor);
-                        anchorNode.setRenderable(marker.get());
-                        anchorNode.setLocalScale(new Vector3(0.3f, 0.3f, 0.3f));
-                        arFragment.getArSceneView().getScene().addChild(anchorNode);
-/*
-                        Node modelNode1 = new Node();
-                        modelNode1.setRenderable(dragon.get());
-                        modelNode1.setLocalScale(new Vector3(0.3f, 0.3f, 0.3f));
-                        modelNode1.setLocalRotation(Quaternion.multiply(
-                                Quaternion.axisAngle(new Vector3(1f, 0f, 0f), 45),
-                                Quaternion.axisAngle(new Vector3(0f, 1f, 0f), 75)));
-                        modelNode1.setLocalPosition(new Vector3(0f, 0f, -1.0f));
-                        arFragment.getArSceneView().getScene().addChild(modelNode1);
-
-
-                        Node modelNode3 = new Node();
-                        modelNode3.setRenderable(dragon.get());
-                        modelNode3.setLocalScale(new Vector3(0.3f, 0.3f, 0.3f));
-                        modelNode3.setLocalRotation(Quaternion.axisAngle(new Vector3(0f, 1f, 0f), 35));
-                        modelNode3.setLocalPosition(new Vector3(0f, 0f, -1.0f));
-                        arFragment.getArSceneView().getScene().addChild(modelNode3);
-*/
-                    } catch (InterruptedException | ExecutionException ignore) {
-
-                    }
-                    return null;
-                });
+    /*
+        建立相片的跳動圖示
+    */
+    private Node createPicNode( Node baseNode ){
+        JumpingNode jNode = new JumpingNode();
+        jNode.setParent( baseNode );
+        RotatingNode picNode = new RotatingNode(false);
+        picNode.setRenderable( mPicModel );
+        picNode.setLocalScale(new Vector3(1f, 1f, 1f));
+        picNode.setParent( jNode );
+        return picNode;
     }
     /*
        從伺服路要圖資回來
@@ -458,8 +407,7 @@ public class MainActivity extends AppCompatActivity implements
                 // Create the transformable model and add it to the anchor.
                 TransformableNode model = new TransformableNode(arFragment.getTransformationSystem());
                 model.setParent(anchorNode);
-                model.setRenderable( mModel );
-                // .animate(true).start();
+                Node picNode = createPicNode( model );
                 model.select();
 
                 // 計算告示牌方向，讓牌子都面向使用者,但是當使用者移動時，也要詬調整方位 @@
@@ -479,12 +427,14 @@ public class MainActivity extends AppCompatActivity implements
         }
         // 在GoogleMap 新增經界線 Marker
         for( List<Point3> list :ptLists ) {
-            mMapView.addParcelMarker( list );
+            if( mMapView != null )
+                mMapView.addParcelMarker( list );
         }
         for( PICDATA3D pic : picList ) {
             double lat = pic.getCoordy();
             double lon = pic.getCoordx();
-            mActivity.mMapView.addPicMarker( new LatLng(lat, lon) );
+            if( mMapView != null )
+                mMapView.addPicMarker( new LatLng(lat, lon) );
         }
 
     }
@@ -504,6 +454,9 @@ public class MainActivity extends AppCompatActivity implements
         }
     }
 
+    /*
+     點擊地圖時新增 anchor
+    */
     private void addAnchor( Anchor anchor , LatLng latlng ){
         AnchorNode anchorNode = new AnchorNode(anchor);
         anchorNode.setParent(arFragment.getArSceneView().getScene());
@@ -511,7 +464,7 @@ public class MainActivity extends AppCompatActivity implements
         // Create the transformable model and add it to the anchor.
         TransformableNode model = new TransformableNode(arFragment.getTransformationSystem());
         model.setParent(anchorNode);
-        model.setRenderable( mModel );
+        model.setRenderable( mPicModel );
                // .animate(true).start();
         model.select();
 

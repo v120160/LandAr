@@ -87,15 +87,20 @@ public class MapView {
             cameraMarker.setPosition(position);
             cameraMarker.setRotation((float) heading);
 
-            CameraPosition.Builder cameraPositionBuilder = new CameraPosition.Builder();
-            if (!setInitialCameraPosition) {
-                setInitialCameraPosition = true;
-                cameraPositionBuilder.zoom(21f).target(position);
-            } else {
-                cameraPositionBuilder.zoom(googleMap.getCameraPosition().zoom).target(position);
+            CameraPosition cp;
+            if( setInitialCameraPosition ) {
+                cp = new CameraPosition.Builder()
+                        .target(position)
+                        .bearing((float) heading)
+                        .build();
+            }else {
+                cp = new CameraPosition.Builder()
+                        .target(position)
+                        .bearing((float) heading)
+                        .zoom(19.0f)
+                        .build();
             }
-
-            googleMap.moveCamera(CameraUpdateFactory.newCameraPosition(cameraPositionBuilder.build()));
+            googleMap.moveCamera(CameraUpdateFactory.newCameraPosition(cp));
         });
     }
 
@@ -116,7 +121,7 @@ public class MapView {
         MarkerOptions marker = new MarkerOptions().position(latlon).title("FUCK").anchor(0.5f, 0.5f);
 
         // Changing marker icon
-        BitmapDescriptor bp_G = BitmapDescriptorFactory.fromResource(R.drawable.redball_big);
+        BitmapDescriptor bp_G = BitmapDescriptorFactory.fromResource(R.drawable.redball_medium);
         marker.zIndex(0.0f);
         marker.icon(bp_G);
         googleMap.addMarker(marker);

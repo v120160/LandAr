@@ -3,6 +3,7 @@
     xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
     tools:context=".MainActivity">
 
     <androidx.fragment.app.FragmentContainerView
@@ -10,27 +11,23 @@
         android:layout_width="match_parent"
         android:layout_height="match_parent" />
 
-    <hu.hero.landar.helpers.MapTouchWrapper
+    <!--hu.hero.landar.helpers.MapTouchWrapper-->
+    <hu.hero.landar.helpers.RoundCornerLayout
         android:id="@+id/map_wrapper"
         android:layout_width="match_parent"
         android:layout_height="300dp"
-        android:layout_alignParentBottom="true">
-
-        <fragment
+        android:layout_alignParentTop="true">
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:gravity="center"
+            android:text="胡征懷"
+            android:textColor="@android:color/black"/>
+        <!--fragment
             android:id="@+id/map"
             android:name="com.google.android.gms.maps.SupportMapFragment"
             android:layout_width="match_parent"
             android:layout_height="match_parent"
-            tools:context=".HelloGeoActivity" />
-        <TextView
-            android:padding="8dp"
-            android:textColor="@android:color/black"
-            android:background="#AAFFFFFF"
-            android:layout_width="wrap_content"
-            android:fontFamily="monospace"
-            android:layout_height="wrap_content"
-            android:id="@+id/statusText"
-            />
-    </hu.hero.landar.helpers.MapTouchWrapper>
-
+            tools:context=".HelloGeoActivity" /-->
+    </hu.hero.landar.helpers.RoundCornerLayout>
 </RelativeLayout>

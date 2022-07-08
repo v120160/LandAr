@@ -10,14 +10,15 @@ import com.google.ar.sceneform.math.QuaternionEvaluator;
 import com.google.ar.sceneform.math.Vector3;
 
 public class RotatingNode extends Node {
+    private float orbitSpeedMultiplier = 1.0f;
+    private float rotationSpeedMultiplier = 1.5f;  // 自轉速度
+
     private ObjectAnimator orbitAnimation = null;
     private float gradoSegundo = 90.0f;
-    private final SolarSettings settings;
     private final boolean isOrbit;
     private float lastSpeedMultiplier = 1.0f;
 
-    public RotatingNode(SolarSettings settings, boolean isOrbit) {
-        this.settings = settings;
+    public RotatingNode(boolean isOrbit) {
         this.isOrbit = isOrbit;
     }
 
@@ -67,9 +68,9 @@ public class RotatingNode extends Node {
 
     private float getSpeedMultiplier() {
         if (isOrbit) {
-            return settings.getOrbitSpeedMultiplier();
+            return orbitSpeedMultiplier;
         } else {
-            return settings.getRotationSpeedMultiplier();
+            return rotationSpeedMultiplier;
         }
     }
 
