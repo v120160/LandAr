@@ -12,7 +12,7 @@ public class JumpingNode extends Node {
     private float jumpingSpeedMultiplier = 1.0f;  //  跳動速度
     private float jumpingHeight = 10.0f;           //  總跳動高度
     private float jumpingPace = 6.5f;           //   每秒跳動高度
-
+    private float jumpingBegin = 0.0f;
     private ObjectAnimator jumpingAnimation = null;
 
     public JumpingNode(){}
@@ -81,9 +81,9 @@ public class JumpingNode extends Node {
     private ObjectAnimator createAnimator() {
         // Node's setLocalPosition method accepts Vector3 as parameters.
         // First, set up orientations that will animate a circle.
-        Vector3 v1 = new Vector3(0.0f, 0.0f, 0.0f);
+        Vector3 v1 = new Vector3(0.0f, jumpingBegin, 0.0f);
         Vector3 v2 = new Vector3(0.0f, jumpingHeight, 0.0f);
-        Vector3 v3 = new Vector3(0.0f, 0.0f, 0.0f);
+        Vector3 v3 = new Vector3(0.0f, jumpingBegin, 0.0f);
 
         ObjectAnimator jumpingAnimation = new ObjectAnimator();
         jumpingAnimation.setObjectValues(v1,v2,v3);
@@ -101,5 +101,33 @@ public class JumpingNode extends Node {
         jumpingAnimation.setAutoCancel(true);
 
         return jumpingAnimation;
+    }
+
+    public float getJumpingSpeedMultiplier() {
+        return jumpingSpeedMultiplier;
+    }
+
+    public void setJumpingSpeedMultiplier(float jumpingSpeedMultiplier) {
+        this.jumpingSpeedMultiplier = jumpingSpeedMultiplier;
+    }
+
+    public float getJumpingHeight() {
+        return jumpingHeight;
+    }
+
+    public void setJumpingHeight(float jumpingHeight) {
+        this.jumpingHeight = jumpingHeight;
+    }
+
+    public float getJumpingPace() {
+        return jumpingPace;
+    }
+
+    public float getJumpingBegin() {
+        return jumpingBegin;
+    }
+
+    public void setJumpingBegin(float jumpingBegin) {
+        this.jumpingBegin = jumpingBegin;
     }
 }

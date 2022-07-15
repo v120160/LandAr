@@ -12,6 +12,9 @@ import android.util.DisplayMetrics;
 import android.util.TypedValue;
 import android.view.View;
 import android.widget.FrameLayout;
+
+import androidx.annotation.NonNull;
+import androidx.annotation.Nullable;
 import hu.hero.landar.R;
 
 public class RoundCornerLayout extends FrameLayout {
@@ -27,11 +30,11 @@ public class RoundCornerLayout extends FrameLayout {
 
     // IMPLEMENTS
     public RoundCornerLayout(Context context) {
-        this(context, null);
+        super(context);
     }
 
     public RoundCornerLayout(Context context, AttributeSet attrs) {
-        this(context, attrs, 0);
+        super(context, attrs);
     }
 
     public RoundCornerLayout(Context context, AttributeSet attrs, int defStyle) {

@@ -46,7 +46,8 @@ public class GetDataByDistance{
     public void get(String userid , double lat , double lon , double distance ) {
         mUserId = userid;
 //        String url = LitePal.findFirst( SETTING.class ).getServerUrl();
-        String url = "http://192.168.1.25:8082";
+//        String url = "http://192.168.1.25:8082";
+        String url = "http://114.35.159.191";
 //        String url = "http://192.168.0.106:8082";
 
         Retrofit retrofit = new Retrofit.Builder()
@@ -70,7 +71,7 @@ public class GetDataByDistance{
             @Override
             public void onFailure(Call<SpatialIndexPackage> call, Throwable t) {
                 // 連線失敗
-                Log.d("title", "Fail");
+                Log.d("title", t.getMessage());
                 ((MainActivity)mContext).onReadDataFinish(null);
             }
         });

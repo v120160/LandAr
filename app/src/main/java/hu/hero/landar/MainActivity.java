@@ -1,22 +1,18 @@
 package hu.hero.landar;
 
-import android.animation.ObjectAnimator;
+import android.content.res.Configuration;
 import android.net.Uri;
 import android.os.Bundle;
-import android.util.ArraySet;
 import android.util.Log;
-import android.view.Gravity;
 import android.view.MotionEvent;
-import android.view.animation.LinearInterpolator;
+import android.widget.FrameLayout;
+import android.widget.TextView;
 import android.widget.Toast;
 
-import com.google.android.filament.gltfio.Animator;
-import com.google.android.filament.gltfio.FilamentAsset;
-import com.google.android.gms.maps.CameraUpdateFactory;
 import com.google.android.gms.maps.GoogleMap;
+import com.google.android.gms.maps.MapView;
 import com.google.android.gms.maps.OnMapReadyCallback;
 import com.google.android.gms.maps.SupportMapFragment;
-import com.google.android.gms.maps.model.CameraPosition;
 import com.google.android.gms.maps.model.LatLng;
 import com.google.ar.core.Anchor;
 import com.google.ar.core.Config;
@@ -24,17 +20,14 @@ import com.google.ar.core.Earth;
 import com.google.ar.core.GeospatialPose;
 import com.google.ar.core.HitResult;
 import com.google.ar.core.Plane;
-import com.google.ar.core.Pose;
 import com.google.ar.core.Session;
 import com.google.ar.core.TrackingState;
 import com.google.ar.sceneform.AnchorNode;
 import com.google.ar.sceneform.ArSceneView;
-import com.google.ar.sceneform.FrameTime;
 import com.google.ar.sceneform.Node;
 import com.google.ar.sceneform.SceneView;
 import com.google.ar.sceneform.Sceneform;
 import com.google.ar.sceneform.math.Quaternion;
-import com.google.ar.sceneform.math.QuaternionEvaluator;
 import com.google.ar.sceneform.math.Vector3;
 import com.google.ar.sceneform.rendering.CameraStream;
 import com.google.ar.sceneform.rendering.Color;
@@ -47,9 +40,10 @@ import com.google.ar.sceneform.ux.ArFragment;
 import com.google.ar.sceneform.ux.BaseArFragment;
 import com.google.ar.sceneform.ux.TransformableNode;
 
+import org.jetbrains.annotations.NotNull;
+
 import java.lang.ref.WeakReference;
 import java.util.List;
-import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
 
@@ -61,12 +55,10 @@ import androidx.fragment.app.FragmentOnAttachListener;
 import hu.hero.landar.Geo.Point3;
 import hu.hero.landar.common.JumpingNode;
 import hu.hero.landar.common.RotatingNode;
-import hu.hero.landar.database.PICDATA;
 import hu.hero.landar.database.PICDATA3D;
 import hu.hero.landar.helpers.GeoPermissionsHelper;
+import hu.hero.landar.helpers.HUMapView;
 import hu.hero.landar.helpers.MapTouchWrapper;
-import hu.hero.landar.helpers.MapView;
-import hu.hero.landar.helpers.RoundCornerLayout;
 import hu.hero.landar.net.GetDataByDistance;
 
 public class MainActivity extends AppCompatActivity implements
@@ -76,16 +68,22 @@ public class MainActivity extends AppCompatActivity implements
         ArFragment.OnViewCreatedListener{
     private static final String TAG = MainActivity.class.getSimpleName();
     private MainActivity mActivity;
+    private int mLastOrientation;
+    private TextView mPosInfo;
+    private MapTouchWrapper mMapPannel;
     private static final double MIN_OPENGL_VERSION = 3.0;
     private ArFragment arFragment;
     private Renderable mPicModel;
-    private Renderable mBPointModel;
+    private Renderable mBaseModel;
     private Renderable mYellowTubeModel;
     private Renderable mTubeModel;
     private Renderable mBlueTubeModel;
     private ViewRenderable mViewRenderable;
 
-    public MapView mMapView = null;
+    public HUMapView mMapView = null;
+    private static final String MAPVIEW_BUNDLE_KEY = "MapViewBundleKey";
+    public static final String KEY_LAST_ORIENTATION = "last_orientation";
+
     private AnchorNode mLastAnchor = null;
     private Earth mEarth = null;
 
@@ -122,48 +120,53 @@ public class MainActivity extends AppCompatActivity implements
         mActivity = this;
 
         setContentView(R.layout.activity_main);
+
         getSupportFragmentManager().addFragmentOnAttachListener(this);
 
         if (savedInstanceState == null) {
+            mLastOrientation = getResources().getConfiguration().orientation;
             if (Sceneform.isSupported(this)) {
                 getSupportFragmentManager().beginTransaction()
                         .add(R.id.arFragment, ArFragment.class, null)
                         .commit();
             }
         }
-
         loadModels();
 
+        mPosInfo = findViewById(R.id.posinfo);
         // 設定點擊地圖時的動作
-//        MapTouchWrapper mapTouchWrapper = findViewById(R.id.map_wrapper);
-        RoundCornerLayout mapTouchWrapper = findViewById(R.id.map_wrapper);
-        mapTouchWrapper.setCornerEnabled(true,true,false,false);
-/*        mapTouchWrapper.setup(screenLocation -> {
-            LatLng latLng = mMapView.googleMap.getProjection().fromScreenLocation(screenLocation);
-//            Log.d("胡征懷",latLng.toString());
-            if ( getEarthTrackingState() ){
-                double altitude = mEarth.getCameraGeospatialPose().getAltitude() ;
-                // The rotation quaternion of the anchor in the East-Up-South (EUS) coordinate system.
-                float qx = 0f;
-                float qy = 0f;
-                float qz = 0f;
-                float qw = 1f;
-                Anchor anchor = mEarth.createAnchor(latLng.latitude, latLng.longitude, altitude, qx, qy, qz, qw);
-                addAnchor(anchor, latLng );
-            }
-            mActivity.mMapView.addPicMarker( latLng );
-        });*/
+        mMapPannel = findViewById(R.id.map_wrapper);
+        mMapPannel.setRotate(Configuration.ORIENTATION_PORTRAIT);
 
-/*
-        SupportMapFragment mapFragment = (SupportMapFragment) mActivity.getSupportFragmentManager().findFragmentById(R.id.map);
-        mapFragment.getMapAsync(new OnMapReadyCallback() {
-            @Override
-            public void onMapReady(@NonNull GoogleMap googleMap) {
-                mMapView = new MapView(mActivity, googleMap);
-            }
-        });
-*/
+        Bundle mapViewBundle = null;
+        if (savedInstanceState != null) {
+            mapViewBundle = savedInstanceState.getBundle(MAPVIEW_BUNDLE_KEY);
+        }
+        mMapView = (HUMapView) findViewById(R.id.mapview);
+        mMapView.onCreate(mapViewBundle);
     }
+
+    /*
+        設備旋轉時
+    */
+
+
+    /* **  注意 **
+    AndroidManifest.xml 要設定 android:configChanges=orientation , 手機旋轉時才能保持session
+    */
+    @Override
+    public void onConfigurationChanged(@NotNull Configuration newConfig) {
+        super.onConfigurationChanged(newConfig);
+
+        // Checks the orientation of the screen
+        if (newConfig.orientation == Configuration.ORIENTATION_LANDSCAPE) {
+            mMapPannel.setRotate(Configuration.ORIENTATION_LANDSCAPE);
+        } else if (newConfig.orientation == Configuration.ORIENTATION_PORTRAIT){
+            mMapPannel.setRotate(Configuration.ORIENTATION_PORTRAIT);
+        }
+    }
+
+
 
     @Override
     public void onAttachFragment(@NonNull FragmentManager fragmentManager, @NonNull Fragment fragment) {
@@ -212,6 +215,8 @@ public class MainActivity extends AppCompatActivity implements
                 double altitute = cameraGeospatialPose.getAltitude();
                 double heading = cameraGeospatialPose.getHeading();
 
+                if( mPosInfo != null )
+                    mPosInfo.setText( String.format("高程：%.2f",altitute));
                 if( mMapView != null )
                     mMapView.updateMapPosition( lat, lon, heading );
 
@@ -237,6 +242,7 @@ public class MainActivity extends AppCompatActivity implements
 
     public void loadModels() {
 
+        // 相片的 3D Model
         CompletableFuture<ModelRenderable> marker = ModelRenderable
                 .builder()
                 .setSource(this
@@ -254,8 +260,7 @@ public class MainActivity extends AppCompatActivity implements
                     return null;
                 });
 
-
-
+        // 基礎點的 3D Model
         WeakReference<MainActivity> weakActivity = new WeakReference<>(this);
         MaterialFactory.makeOpaqueWithColor(this, new Color(android.graphics.Color.RED))
                 .thenAccept(
@@ -263,32 +268,9 @@ public class MainActivity extends AppCompatActivity implements
                             // 金屬表面
                             material.setFloat(MaterialFactory.MATERIAL_METALLIC, 1f);
                             // 圓柱
-                            mBPointModel = ShapeFactory.makeCylinder(0.5f, 10f,  new Vector3(0.0f, 0.15f, 0.0f), material);
+                            mBaseModel = ShapeFactory.makeCylinder(0.4f, 0.3f,  new Vector3(0.0f, 0.15f, 0.0f), material);
                         });
-        MaterialFactory.makeOpaqueWithColor(this, new Color(android.graphics.Color.YELLOW))
-                .thenAccept(
-                        material -> {
-                            // 金屬表面
-                            material.setFloat(MaterialFactory.MATERIAL_METALLIC, 1f);
-                            // 圓柱
-                            mYellowTubeModel = ShapeFactory.makeCylinder(0.5f, 23f,  new Vector3(0.0f, 0.15f, 0.0f), material);
-                        });
-        MaterialFactory.makeOpaqueWithColor(this, new Color(android.graphics.Color.BLUE))
-                .thenAccept(
-                        material -> {
-                            // 金屬表面
-                            material.setFloat(MaterialFactory.MATERIAL_METALLIC, 1f);
-                            // 圓柱
-                            mBlueTubeModel = ShapeFactory.makeCylinder(0.5f, 3f,  new Vector3(0.0f, 0.15f, 0.0f), material);
-                        });
-        MaterialFactory.makeOpaqueWithColor(this, new Color(android.graphics.Color.rgb(255,255,0)))
-                .thenAccept(
-                        material -> {
-                            // 金屬表面
-                            material.setFloat(MaterialFactory.MATERIAL_METALLIC, 1f);
-                            // 圓柱
-                            mTubeModel = ShapeFactory.makeCylinder(0.5f, 10f,  new Vector3(0.0f, 0.15f, 0.0f), material);
-                        });
+
         ViewRenderable.builder()
                 .setView(this, R.layout.view_model_title)
                 .build()
@@ -302,23 +284,6 @@ public class MainActivity extends AppCompatActivity implements
                     Toast.makeText(this, "Unable to load model", Toast.LENGTH_LONG).show();
                     return null;
                 });
-        loadBPointModel();
-    }
-
-    /*
-        建立界址點 Model
-    */
-    private void loadBPointModel(){
-        MaterialFactory.makeOpaqueWithColor(this, new Color(android.graphics.Color.RED))
-                .thenAccept(
-                        material -> {
-                            // 金屬表面
-                            material.setFloat(MaterialFactory.MATERIAL_METALLIC, 1f);
-                            // 球型
-//                            mBPointModel = ShapeFactory.makeSphere(0.75f, new Vector3(0.0f, 0.15f, 0.0f), material);
-                            // 圓柱
-                            mBPointModel = ShapeFactory.makeCylinder(1.0f, 5f,  new Vector3(0.0f, 0.15f, 0.0f), material);
-                        });
     }
 
     /*
@@ -327,26 +292,25 @@ public class MainActivity extends AppCompatActivity implements
     @Override
     public void onTapPlane(HitResult hitResult, Plane plane, MotionEvent motionEvent) {
         Anchor anchor = hitResult.createAnchor();
+        createPicNode( anchor );
+    }
+
+    /*
+        建立相片的跳動圖示
+    */
+    private Node createPicNode( Anchor anchor ){
         AnchorNode baseNode = new AnchorNode(anchor);
+        baseNode.setRenderable( mBaseModel );
         JumpingNode jNode = new JumpingNode();
+        jNode.setJumpingBegin(0.3f);
+        jNode.setJumpingHeight(25.0f);
+        jNode.setJumpingPace(10.0f);
         jNode.setParent( baseNode );
         RotatingNode picNode = new RotatingNode(false);
         picNode.setRenderable( mPicModel );
         picNode.setParent( jNode );
         picNode.setLocalScale(new Vector3(0.2f, 0.2f, 0.2f));
         arFragment.getArSceneView().getScene().addChild(baseNode);
-    }
-
-    /*
-        建立相片的跳動圖示
-    */
-    private Node createPicNode( Node baseNode ){
-        JumpingNode jNode = new JumpingNode();
-        jNode.setParent( baseNode );
-        RotatingNode picNode = new RotatingNode(false);
-        picNode.setRenderable( mPicModel );
-        picNode.setLocalScale(new Vector3(1f, 1f, 1f));
-        picNode.setParent( jNode );
         return picNode;
     }
     /*
@@ -402,27 +366,21 @@ public class MainActivity extends AppCompatActivity implements
                 double lon = pic.getCoordx();
                 double h = pic.getElevation();
                 Anchor anchor = mEarth.createAnchor( lat, lon, h, qx, qy, qz, qw);
-                AnchorNode anchorNode = new AnchorNode(anchor);
-                anchorNode.setParent(arFragment.getArSceneView().getScene());
-                // Create the transformable model and add it to the anchor.
-                TransformableNode model = new TransformableNode(arFragment.getTransformationSystem());
-                model.setParent(anchorNode);
-                Node picNode = createPicNode( model );
-                model.select();
+                Node picNode = createPicNode( anchor );
 
                 // 計算告示牌方向，讓牌子都面向使用者,但是當使用者移動時，也要詬調整方位 @@
                 float az=0;
                 GeospatialPose base = mEarth.getCameraGeospatialPose();
                 double daz = Math.atan(( lat-base.getLatitude())/(lon-base.getLongitude()));
                 az = (float)(daz * 180f / Math.PI ) + 90f;
-                // 告示牌
+ /*               // 告示牌
                 Node titleNode = new Node();
                 titleNode.setParent(model);
                 titleNode.setEnabled(false);
                 titleNode.setLocalPosition(new Vector3(0.0f, 2.0f, 0.0f));
                 titleNode.setLocalRotation( Quaternion.axisAngle(new Vector3(0f, 1f, 0f), az));
                 titleNode.setRenderable(mViewRenderable);
-                titleNode.setEnabled(true);
+                titleNode.setEnabled(true);*/
             }
         }
         // 在GoogleMap 新增經界線 Marker
@@ -437,6 +395,25 @@ public class MainActivity extends AppCompatActivity implements
                 mMapView.addPicMarker( new LatLng(lat, lon) );
         }
 
+    }
+
+    // 程式設定狀態存取
+    @Override
+    protected void onRestoreInstanceState(Bundle savedInstanceState) {
+        super.onRestoreInstanceState(savedInstanceState);
+        mLastOrientation = savedInstanceState.getInt(KEY_LAST_ORIENTATION);
+    }
+
+    @Override
+    public void onSaveInstanceState(Bundle savedInstanceState) {
+        super.onSaveInstanceState(savedInstanceState);
+        savedInstanceState.putInt(KEY_LAST_ORIENTATION, mLastOrientation);
+        Bundle mapViewBundle = savedInstanceState.getBundle(MAPVIEW_BUNDLE_KEY);
+        if (mapViewBundle == null) {
+            mapViewBundle = new Bundle();
+            savedInstanceState.putBundle(MAPVIEW_BUNDLE_KEY, mapViewBundle);
+        }
+        mMapView.onSaveInstanceState(mapViewBundle);
     }
 
     @Override
@@ -554,6 +531,48 @@ public class MainActivity extends AppCompatActivity implements
         double R = 6371004;
         double C = Math.sin(Math.toRadians(LatA)) * Math.sin(Math.toRadians(LatB)) + Math.cos(Math.toRadians(LatA)) * Math.cos(Math.toRadians(LatB)) * Math.cos(Math.toRadians(LonA - LonB));
         return (R * Math.acos(C));
+    }
+
+    @Override
+    protected void onResume() {
+        super.onResume();
+        mMapView.onResume();
+        Log.d("MainActivity","onResume called");
+    }
+
+    @Override
+    protected void onStart() {
+        super.onStart();
+        mMapView.onStart();
+        Log.d("MainActivity","onStart called");
+    }
+
+    @Override
+    protected void onStop() {
+        super.onStop();
+        mMapView.onStop();
+        Log.d("MainActivity","onStop called");
+    }
+
+
+    @Override
+    protected void onPause() {
+        mMapView.onPause();
+        super.onPause();
+        Log.d("MainActivity","onPause called");
+    }
+
+    @Override
+    protected void onDestroy() {
+        mMapView.onDestroy();
+        super.onDestroy();
+        Log.d("MainActivity","onDestroy called");
+    }
+
+    @Override
+    public void onLowMemory() {
+        super.onLowMemory();
+        mMapView.onLowMemory();
     }
 
 }

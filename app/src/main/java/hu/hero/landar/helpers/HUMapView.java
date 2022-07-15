@@ -16,16 +16,24 @@
 package hu.hero.landar.helpers;
 
 import android.annotation.SuppressLint;
+import android.content.Context;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
 import android.graphics.Canvas;
 import android.graphics.Color;
 import android.graphics.LightingColorFilter;
 import android.graphics.Paint;
+import android.icu.text.Transliterator;
+import android.os.Bundle;
+import android.util.AttributeSet;
+import android.util.Log;
 import android.util.TypedValue;
 
+import com.google.android.gms.common.GoogleApiAvailabilityLight;
 import com.google.android.gms.maps.CameraUpdateFactory;
 import com.google.android.gms.maps.GoogleMap;
+import com.google.android.gms.maps.MapView;
+import com.google.android.gms.maps.OnMapReadyCallback;
 import com.google.android.gms.maps.UiSettings;
 import com.google.android.gms.maps.model.BitmapDescriptor;
 import com.google.android.gms.maps.model.BitmapDescriptorFactory;
@@ -35,6 +43,8 @@ import com.google.android.gms.maps.model.Marker;
 import com.google.android.gms.maps.model.MarkerOptions;
 import com.google.android.gms.maps.model.PolygonOptions;
 
+import androidx.annotation.NonNull;
+import androidx.annotation.Nullable;
 import hu.hero.landar.Geo.Point3;
 import hu.hero.landar.R;
 
@@ -43,19 +53,35 @@ import java.util.List;
 
 import hu.hero.landar.MainActivity;
 
-public class MapView {
-    public GoogleMap googleMap;
-    private MainActivity activity;
+public class HUMapView extends MapView implements OnMapReadyCallback {
+    private GoogleMap mGoogleMap = null;
+    private MainActivity mActivity;
     private int CAMERA_MARKER_COLOR = Color.argb(255, 0, 255, 0);
     private int EARTH_MARKER_COLOR = Color.argb(255, 125, 125, 125);
-    private boolean setInitialCameraPosition = false;
     private Marker cameraMarker = null;
     private boolean cameraIdle = true;
     private ArrayList<Marker> mMarkers = new ArrayList<>();
 
-    public MapView(MainActivity activity , GoogleMap googleMap ) {
-        this.googleMap = googleMap;
-        this.activity = activity;
+    public HUMapView(Context context){
+        super(context);
+    }
+    public HUMapView(Context context, AttributeSet attrs){
+        super( context , attrs );
+        mActivity = (MainActivity)context;
+    }
+    public HUMapView(Context context, AttributeSet attrs, int defStyle){
+        super( context , attrs , defStyle );
+    }
+
+    @Override
+    public void onCreate(@Nullable Bundle savedInstanceState) {
+        super.onCreate(savedInstanceState);
+        getMapAsync(this);
+    }
+
+    @Override
+    public void onMapReady(@NonNull GoogleMap googleMap) {
+        this.mGoogleMap = googleMap;
         UiSettings settings = googleMap.getUiSettings();
         settings.setMapToolbarEnabled(false);
         settings.setIndoorLevelPickerEnabled(false);
@@ -65,20 +91,56 @@ public class MapView {
 
         cameraMarker = createMarker(CAMERA_MARKER_COLOR);
 
-        googleMap.setOnMarkerClickListener((marker) -> false);
+        mGoogleMap.setOnMarkerClickListener((marker) -> false);
 
         // Add listeners to keep track of when the GoogleMap camera is moving.
-        googleMap.setOnCameraMoveListener(() -> {
+        mGoogleMap.setOnCameraMoveListener(() -> {
             cameraIdle = false;
         });
-        googleMap.setOnCameraIdleListener(() -> {
+        mGoogleMap.setOnCameraIdleListener(() -> {
             cameraIdle = true;
         });
+        CameraPosition cp = new CameraPosition.Builder()
+                .target(new LatLng(22.756630287023807, 121.14233546867824))
+                .zoom(18.0f)
+                .build();
+        mGoogleMap.moveCamera(CameraUpdateFactory.newCameraPosition(cp));
     }
 
+    @Override
+    public void onDestroy() {
+        super.onDestroy();
+        mGoogleMap = null;
+    }
+
+    @Override
+    public void onPause() {
+        super.onPause();
+    }
+
+    @Override
+    public void onResume() {
+        super.onResume();
+    }
+
+    @Override
+    public void onStart() {
+        super.onStart();
+    }
+
+    @Override
+    public void onStop() {
+        super.onStop();
+    }
+
+    /*
+        更新地圖位置
+    */
     public void updateMapPosition(double latitude, double longitude, double heading) {
+        if( mGoogleMap == null )
+            return;
         LatLng position = new LatLng(latitude, longitude);
-        activity.runOnUiThread(() -> {
+        mActivity.runOnUiThread(() -> {
             // If the map is already in the process of a camera update, then don't move it.
             if (!cameraIdle) {
                 return;
@@ -87,20 +149,13 @@ public class MapView {
             cameraMarker.setPosition(position);
             cameraMarker.setRotation((float) heading);
 
-            CameraPosition cp;
-            if( setInitialCameraPosition ) {
-                cp = new CameraPosition.Builder()
+            float fZoom = mGoogleMap.getCameraPosition().zoom;
+            CameraPosition cp = new CameraPosition.Builder()
                         .target(position)
+                        .zoom(fZoom)
                         .bearing((float) heading)
                         .build();
-            }else {
-                cp = new CameraPosition.Builder()
-                        .target(position)
-                        .bearing((float) heading)
-                        .zoom(19.0f)
-                        .build();
-            }
-            googleMap.moveCamera(CameraUpdateFactory.newCameraPosition(cp));
+            mGoogleMap.moveCamera(CameraUpdateFactory.newCameraPosition(cp));
         });
     }
 
@@ -114,7 +169,7 @@ public class MapView {
                 polygonOptions.add(L);
         }
         polygonOptions.strokeColor(Color.BLUE).strokeWidth(4.0f);
-        googleMap.addPolygon(polygonOptions);
+        mGoogleMap.addPolygon(polygonOptions);
     }
 
     public void addPicMarker( LatLng  latlon ){
@@ -124,7 +179,7 @@ public class MapView {
         BitmapDescriptor bp_G = BitmapDescriptorFactory.fromResource(R.drawable.redball_medium);
         marker.zIndex(0.0f);
         marker.icon(bp_G);
-        googleMap.addMarker(marker);
+        mGoogleMap.addMarker(marker);
     }
 
     public void addMarker( LatLng latLng ){
@@ -145,14 +200,14 @@ public class MapView {
         markersOptions.flat(true);
         markersOptions.visible(false);
         markersOptions.icon(BitmapDescriptorFactory.fromBitmap(createColoredMarkerBitmap(color)));
-        return googleMap.addMarker(markersOptions);
+        return mGoogleMap.addMarker(markersOptions);
     }
 
     private Bitmap createColoredMarkerBitmap(int color) {
         BitmapFactory.Options opt = new BitmapFactory.Options();
         opt.inMutable = true;
         Bitmap navigationIcon =
-                BitmapFactory.decodeResource(activity.getResources(), R.drawable.ic_navigation_white_48dp,opt);
+                BitmapFactory.decodeResource(mActivity.getResources(), R.drawable.ic_navigation_white_48dp,opt);
         Paint p = new Paint();
         p.setColorFilter(new LightingColorFilter(color,  /* add= */1));
         Canvas canvas = new Canvas(navigationIcon);
