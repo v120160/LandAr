@@ -89,6 +89,8 @@ public class MainActivity extends AppCompatActivity implements
 
     private double mBaseLat = 0;
     private double mBaseLon = 119.0;
+    private double mBaseElevate = 20.2;
+    private double mBaseAltitute = 0;
 
     private class PicAnchar extends Anchor{
         public LatLng pos;
@@ -212,11 +214,11 @@ public class MainActivity extends AppCompatActivity implements
                 GeospatialPose cameraGeospatialPose = mEarth.getCameraGeospatialPose();
                 double lat = cameraGeospatialPose.getLatitude();
                 double lon = cameraGeospatialPose.getLongitude();
-                double altitute = cameraGeospatialPose.getAltitude();
+                double mBaseAltitute = cameraGeospatialPose.getAltitude();
                 double heading = cameraGeospatialPose.getHeading();
 
                 if( mPosInfo != null )
-                    mPosInfo.setText( String.format("高程：%.2f",altitute));
+                    mPosInfo.setText( String.format("高程：%.2f",mBaseAltitute));
                 if( mMapView != null )
                     mMapView.updateMapPosition( lat, lon, heading );
 
@@ -364,7 +366,7 @@ public class MainActivity extends AppCompatActivity implements
             for( PICDATA3D pic : picList ) {
                 double lat = pic.getCoordy();
                 double lon = pic.getCoordx();
-                double h = pic.getElevation();
+                double h = pic.getElevation() + (mBaseAltitute-mBaseElevate);
                 Anchor anchor = mEarth.createAnchor( lat, lon, h, qx, qy, qz, qw);
                 Node picNode = createPicNode( anchor );
 
