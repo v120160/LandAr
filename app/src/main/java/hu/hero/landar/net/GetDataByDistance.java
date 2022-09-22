@@ -16,6 +16,7 @@ import retrofit2.Response;
 import retrofit2.Retrofit;
 import retrofit2.converter.gson.GsonConverterFactory;
 import retrofit2.http.GET;
+import retrofit2.http.Header;
 import retrofit2.http.Query;
 
 
@@ -32,11 +33,12 @@ public class GetDataByDistance{
 
     // 內崁 service
     private interface MyAPIService {
-        @GET("/distanceSearch")
-        Call<SpatialIndexPackage> distanceSearch(@Query("userId") String user,
-                                             @Query("lat") double lat,
-                                             @Query("lon") double lon,
-                                             @Query("distance") double distance );
+        @GET("/api/distanceSearch")
+        Call<SpatialIndexPackage> distanceSearch(@Header("Authorization") String authHeader,
+                                                 @Query("userId") String user,
+                                                 @Query("lat") double lat,
+                                                 @Query("lon") double lon,
+                                                 @Query("distance") double distance );
     }
 
     public GetDataByDistance(Context context) {
@@ -46,8 +48,8 @@ public class GetDataByDistance{
     public void get(String userid , double lat , double lon , double distance ) {
         mUserId = userid;
 //        String url = LitePal.findFirst( SETTING.class ).getServerUrl();
-//        String url = "http://192.168.1.25:8082";
-        String url = "http://114.35.159.191";
+        String url = "http://192.168.1.25:8082";
+//        String url = "http://114.35.159.191";
 //        String url = "http://192.168.0.106:8082";
 
         Retrofit retrofit = new Retrofit.Builder()
@@ -57,7 +59,8 @@ public class GetDataByDistance{
 
         MyAPIService service = retrofit.create(MyAPIService.class);
 
-        Call<SpatialIndexPackage> call = service.distanceSearch(userid, lat, lon, distance );
+        String token = "Bearer eyJhbGciOiJIUzI1NiJ9.eyJ1c2VybmFtZSI6IlZEMDEiLCJleHAiOjMyNDE3NTQxNDYsImlzcyI6IlN1cGVyIEhlcm8ifQ.b8ftydUrrk9EXzkyVnVqOJ28k6J8C2fOLzBfCUUddEk";
+        Call<SpatialIndexPackage> call = service.distanceSearch(token, userid, lat, lon, distance );
 
         // 此段為非同步請求
         call.enqueue(new Callback<SpatialIndexPackage>() {

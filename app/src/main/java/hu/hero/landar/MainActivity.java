@@ -75,6 +75,7 @@ public class MainActivity extends AppCompatActivity implements
     private ArFragment arFragment;
     private Renderable mPicModel;
     private Renderable mBaseModel;
+    private Renderable mBPointModel;
     private Renderable mYellowTubeModel;
     private Renderable mTubeModel;
     private Renderable mBlueTubeModel;
@@ -205,7 +206,7 @@ public class MainActivity extends AppCompatActivity implements
                         CameraStream.DepthOcclusionMode.DEPTH_OCCLUSION_DISABLED );
 
         // 取消平面偵測的白點點
-        arSceneView.getPlaneRenderer().setVisible(false);
+//        arSceneView.getPlaneRenderer().setVisible(false);
 
         // 設定 scene 每次畫面更新時呼叫
         arSceneView.getScene().addOnUpdateListener(frameTime->{
@@ -262,8 +263,7 @@ public class MainActivity extends AppCompatActivity implements
                     return null;
                 });
 
-        // 基礎點的 3D Model
-        WeakReference<MainActivity> weakActivity = new WeakReference<>(this);
+        // 相片基礎點的 3D Model
         MaterialFactory.makeOpaqueWithColor(this, new Color(android.graphics.Color.RED))
                 .thenAccept(
                         material -> {
@@ -273,6 +273,20 @@ public class MainActivity extends AppCompatActivity implements
                             mBaseModel = ShapeFactory.makeCylinder(0.4f, 0.3f,  new Vector3(0.0f, 0.15f, 0.0f), material);
                         });
 
+        // 界均點 3D Model
+        MaterialFactory.makeOpaqueWithColor(this, new Color(android.graphics.Color.BLUE))
+                .thenAccept(
+                        material -> {
+                            // 金屬表面
+                            material.setFloat(MaterialFactory.MATERIAL_METALLIC, 1f);
+                            // 圓柱
+                            mBPointModel = ShapeFactory.makeCylinder(0.4f, 0.3f,  new Vector3(0.0f, 0.15f, 0.0f), material);
+                        });
+
+
+
+        // 告示牌的 Model
+        WeakReference<MainActivity> weakActivity = new WeakReference<>(this);
         ViewRenderable.builder()
                 .setView(this, R.layout.view_model_title)
                 .build()
@@ -334,14 +348,14 @@ public class MainActivity extends AppCompatActivity implements
             float qy = 0f;
             float qz = 0f;
             float qw = 1f;
-/*
+
             // 宗地
             for( List<Point3> list :ptLists ) {
                 AnchorNode lastNode=null;
                 AnchorNode firstNode=null;
                 for( int i=0 ; i<list.size() ; i++ ){
                     Point3 p = list.get(i);
-                    Anchor anchor = mEarth.createAnchor( p.y, p.x, p.h+3, qx, qy, qz, qw);
+                    Anchor anchor = mEarth.createAnchor( p.y, p.x, p.h, qx, qy, qz, qw);
                     AnchorNode anchorNode = new AnchorNode(anchor);
                     anchorNode.setParent(arFragment.getArSceneView().getScene());
                     // Create the transformable model and add it to the anchor.
@@ -361,12 +375,11 @@ public class MainActivity extends AppCompatActivity implements
                 addLine(lastNode, firstNode);
             }
 
- */
             // 相片
             for( PICDATA3D pic : picList ) {
                 double lat = pic.getCoordy();
                 double lon = pic.getCoordx();
-                double h = pic.getElevation() + (mBaseAltitute-mBaseElevate);
+                double h = pic.getElevation();
                 Anchor anchor = mEarth.createAnchor( lat, lon, h, qx, qy, qz, qw);
                 Node picNode = createPicNode( anchor );
 
